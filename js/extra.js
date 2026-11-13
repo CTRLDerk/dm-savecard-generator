@@ -214,7 +214,9 @@
     const my = dv ? dv.series.find(x => x.mine) : null;
     const ch = journal ? (journal.chapters || []).filter(c => c.season === s.season) : [];
     const counts = {}; if (journal) for (const e of journal.events.filter(e => e.season === s.season)) counts[e.type] = (counts[e.type] || 0) + 1;
-    const pointsRaces = fin.filter(x => x.b.position <= 10).length;
+    // races where the team actually scored (team points per race from the save; NASCAR pays every place and stages), else top 10
+    const hasPts = mine.some(x => x.r.raw && x.r.raw.teamPoints && Object.keys(x.r.raw.teamPoints).length);
+    const pointsRaces = hasPts ? mine.filter(x => (num((x.r.raw.teamPoints || {})[f.id]) || 0) + (num((x.r.raw.sprintTeamPoints || {})[f.id]) || 0) > 0).length : fin.filter(x => x.b.position <= 10).length;
     return { kind: 'wrapped', season: s.season, category: s.category, team: f.short, teamName: f.name, color: f.color, logo: f.logo || null, finished: s.finished,
       pos: f.pos, points: f.points, expected: f.expected, wins: f.wins, podiums: f.podiums, poles: f.poles, dnf: f.dnf, races: mine.length, total: s.rounds.total, pointsRaces,
       best: top ? { name: top.r.name, cc: top.r.cc, pos: top.b.position, start: top.b.start, drivers: top.b.drivers } : null,

@@ -18,7 +18,7 @@
   const st = {
     source: null, status: null, slots: [], leagues: [], league: null, sel: store.get('sel', null), files: null, summary: null,
     logo: null, logoKey: null, loadedMtime: null, local: null, busy: false, exp: null, expName: null, variant: 0,
-    aiText: null, dirty: false, images: new Map(), tray: [], postText: null, journal: null, journalSlot: null, ep: null, ptForm: false,
+    page: store.get('page', 'chapter'), aiText: null, dirty: false, images: new Map(), tray: [], postText: null, journal: null, journalSlot: null, ep: null, ptForm: false,
     opt: Object.assign({ lang: defLang, table: 'teams', names: false, budget: false, live: true, src: 'social', tone: 'team', about: 'race', len: 'short', wish: '', kind: 'race', epCard: 'cover', epScope: 'chapter', slide: 'intro', person: '', from: '', to: '', whMode: 'notes' }, store.get('opt', {}), { names: false, budget: false })
   };
   const fontsReady = (document.fonts ? Promise.all(Card.helpers.F.FAMILIES.map(f => document.fonts.load(f))) : Promise.resolve()).catch(() => null);
@@ -77,7 +77,7 @@
   }
   async function putLeague(lg) {
     lg.updated = new Date().toISOString();
-    const entry = { id: lg.id, name: lg.name, team: lg.team, color: lg.color, category: lg.category, races: lg.recaps.length, mtime: Date.now() / 1000 };
+    const entry = { id: lg.id, name: lg.name, team: lg.team, color: lg.color, category: lg.category, host: lg.host || null, races: lg.recaps.length, mtime: Date.now() / 1000 };
     if (st.source === 'server') { const r = await api('api/league', { id: lg.id, league: lg }); if (!r.ok) throw new Error(r.error || 'Could not save'); }
     else { store.set('league.' + lg.id, lg); store.set('leagues', st.leagues.filter(x => x.id !== lg.id).concat(entry)); }
     await loadLeagues(); renderSlots();
@@ -88,22 +88,24 @@
     await loadLeagues(); renderSlots();
   }
   function newLeagueForm(msg) {
-    st.sel = null; renderSlots(); renderTabs();
+    st.page = 'mp'; renderTabs();
     $('#main').innerHTML = sec('New multiplayer season') + (msg ? '<p class="alert">' + esc(msg) + '</p>' : '') +
-      '<p class="note">Only the host has the save. Paste the <b>race summary</b> you copied from the game after each race: the tool builds the standings, your season and the chapters from those recaps. R&amp;D, budgets, contracts and ratings are not in a recap, so those cards are left out.</p>' +
+      '<p class="note"><b>Hosting?</b> Pick your save below: every card then works from the save, and you only add the players. <b>Not the host?</b> Paste the <b>race summary</b> you copied from the game after each race: the tool builds the standings, your season and the chapters from those recaps (R&amp;D, budgets, contracts and ratings are not in a recap).</p>' +
       '<form class="mpnew" id="mpnew"><label class="f">Name <input id="mpname" type="text" maxlength="60" placeholder="e.g. Single Seater League S1" required></label>' +
       '<label class="f">Category <input id="mpcat" type="text" maxlength="40" placeholder="optional, e.g. Cup Series"></label>' +
+      '<label class="f">I am host <select id="mphost0"><option value="">No: I use race recaps</option>' + hostOptions(null) + '</select></label>' +
+      (st.slots.length ? '' : '<p class="note">To pick a save as host, choose your save folder first (top right).</p>') +
       '<label class="f col">Players (optional) <textarea class="txt" id="mproster0" spellcheck="false" placeholder="* @discordname - Team name">' + esc(store.get('roster.last', '')) + '</textarea></label>' +
-      '<textarea class="txt paste" id="mptext" spellcheck="false" placeholder="Paste the first race summary here (it starts with === Race summary — …)" aria-label="Race summary"></textarea>' +
+      '<textarea class="txt paste" id="mptext" spellcheck="false" placeholder="Paste the first race summary here (it starts with === Race summary — …). Not needed when you host." aria-label="Race summary"></textarea>' +
       '<div class="actions top"><button class="btn pri" type="submit">Create season</button><span class="note" id="mpnote"></span></div></form>';
     $('#mpnew').addEventListener('submit', async e => {
       e.preventDefault();
-      const name = $('#mpname').value.trim(), text = $('#mptext').value;
-      const c = RC.check({ recaps: [] }, text);
+      const name = $('#mpname').value.trim(), text = $('#mptext').value, host = $('#mphost0').value || null;
+      const c = text.trim() ? RC.check({ recaps: [] }, text) : { ok: !!host, error: 'Pick your save as host, or paste a race summary.' };
       if (!c.ok) { note('#mpnote', c.error, 'err'); return; }
       let id = 'mp/' + RC.slug(name), n = 2;
       while (st.leagues.some(x => x.id === id)) id = 'mp/' + RC.slug(name).slice(0, 36) + '-' + n++;
-      const lg = { v: 1, id, name, category: $('#mpcat').value.trim() || null, team: null, color: null, created: new Date().toISOString(), recaps: [{ text, added: new Date().toISOString() }], roster: RC.parseRoster($('#mproster0').value).list };
+      const lg = { v: 1, id, name, category: $('#mpcat').value.trim() || null, team: null, color: null, created: new Date().toISOString(), recaps: text.trim() ? [{ text, added: new Date().toISOString() }] : [], host, roster: RC.parseRoster($('#mproster0').value).list };
       try { await putLeague(lg); } catch (err) { note('#mpnote', err.message, 'err'); return; }
       select(id);
     });
@@ -149,14 +151,16 @@
     await putLeague(lg); await select(lg.id);
     if (r.bad.length) note('#rosternote', 'Skipped (use “* @name - Team”): ' + r.bad.slice(0, 3).join(' | '), 'err');
   }
+  const hostOptions = sel => st.slots.slice().sort((x, y) => (y.mode === 'coop') - (x.mode === 'coop')).map(x => '<option value="' + esc(x.id) + '"' + (x.id === sel ? ' selected' : '') + '>' +
+    esc((x.team || x.id) + ' · ' + (MODES[x.mode] || x.mode) + ' · slot ' + x.id.split('_').pop() + (x.season ? ' · S' + x.season : '')) + '</option>').join('');
   function mpPanel() {
     const lg = st.league, b = st.mpBuild; if (!lg || !b) return '';
     const done = new Map(b.races.map(r => [r.round, r]));
     const chips = b.races.map(r => '<span class="chip">R' + r.round + ' · ' + esc(r.location) + '<button type="button" class="rm" data-act="mprm" data-key="' + esc(r.key) + '" aria-label="Remove round ' + r.round + '">×</button></span>').join('');
-    const missing = []; for (let i = 1; i <= b.last.round; i++) if (!done.has(i)) missing.push(i);
-    return '<section class="mp">' + sec('Race recaps') +
+    const missing = []; if (b.last) for (let i = 1; i <= b.last.round; i++) if (!done.has(i)) missing.push(i);
+    return '<section class="mp">' + sec(b.races.length ? 'Race recaps' : 'Multiplayer season') +
       '<div class="filters"><label class="f">I am host <select id="mphost"><option value="">No: recaps only</option>' +
-        st.slots.slice().sort((x, y) => (y.mode === 'coop') - (x.mode === 'coop')).map(x => '<option value="' + esc(x.id) + '"' + (x.id === lg.host ? ' selected' : '') + '>' + esc((x.team || x.id) + ' · ' + (MODES[x.mode] || x.mode) + ' · slot ' + x.id.split('_').pop() + (x.season ? ' · S' + x.season : '')) + '</option>').join('') + '</select></label>' +
+        hostOptions(lg.host) + '</select></label>' +
       (st.hostMode ? '</div><p class="note ok">Hosting: every card uses the save (R&amp;D, budgets, contracts, next race). Recaps add race events and the player list.</p><div class="filters">' : lg.host ? '</div><p class="alert">The host save (' + esc(lg.host) + ') is not in the save folder: using the recaps.</p><div class="filters">' : '') +
       (st.hostMode ? '' : '<label class="f">My team <select id="mpteam"><option value="">Choose…</option>' + b.teams.map(t => '<option' + (t === lg.team ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label>' +
         '<label class="f">Team colour <input type="color" id="mpcolor" value="' + esc(/^#[0-9a-f]{6}$/i.test(lg.color || '') ? lg.color : '#E2372B') + '"></label>') +
@@ -172,15 +176,23 @@
             (st.hostMode ? '<button class="btn" type="button" data-act="rosterfill">Fill from save</button>' : '') +
           '<span class="note' + (miss.length ? ' err' : chk.length ? ' ok' : '') + '" id="rosternote">' + (miss.length ? 'No team in the recaps called: ' + esc(miss.map(p => p.team).join(', ')) : chk.length ? chk.length + ' players, all teams found. They start as player teams in every round.' : 'One line per player: * @discordname - Team name') + '</span></div></div>';
       })() +
-      '<div class="players"><span class="sl">Player teams</span><label class="f">in <select id="mpround">' + b.races.slice().reverse().map(r => '<option value="' + esc(r.key) + '"' + (r.key === (st.mpRound || b.last.key) ? ' selected' : '') + '>R' + r.round + ' · ' + esc(r.location) + '</option>').join('') + '</select></label>' +
+      (!b.races.length ? '<p class="note">No race recaps: everything comes from your save. Add recaps only if you want safety cars and race events in the texts.</p>' : '') +
+      (!b.races.length ? '' : '<div class="players"><span class="sl">Player teams</span><label class="f">in <select id="mpround">' + b.races.slice().reverse().map(r => '<option value="' + esc(r.key) + '"' + (r.key === (st.mpRound || b.last.key) ? ' selected' : '') + '>R' + r.round + ' · ' + esc(r.location) + '</option>').join('') + '</select></label>' +
         (() => { const r = b.races.find(x => x.key === (st.mpRound || b.last.key)) || b.last, on = new Set(r.players);
           return b.teams.map(t => '<label class="pchip' + (t === lg.team ? ' me' : '') + '"><input type="checkbox" data-pteam="' + esc(t) + '"' + (on.has(t) || t === lg.team ? ' checked' : '') + (t === lg.team ? ' disabled' : '') + '> ' + esc(t) + '</label>').join('') +
             '<p class="note">' + (r.ownPlayers ? 'Set for this round.' : 'Taken over from the round before.') + ' Later rounds take over this list until you change it there.</p>'; })() +
-      '</div>' +
+      '</div>') +
       (missing.length ? '<p class="note">No recap yet for round ' + missing.join(', ') + ': those races are left out of the season story.</p>' : '') +
       '<div class="actions top"><button class="btn pri" type="button" data-act="mppaste">Paste recap</button><button class="btn" type="button" data-act="mpload">Load .txt</button>' +
         '<input type="file" id="mpfile" accept=".txt,text/plain" multiple hidden><button class="btn" type="button" data-act="mpdel">Delete season</button><span class="note" id="mprnote"></span></div>' +
       '<textarea class="txt paste" id="mppastebox" hidden spellcheck="false" placeholder="Paste the race summary here (=== Race summary — … ===)" aria-label="Race summary"></textarea></section>';
+  }
+
+  // ------------------------------------------------------------ webhook per save (falls back to the default webhook)
+  const hookFor = id => store.get('hook.' + id, '') || store.get('hook', '');
+  function hookNote() {
+    const own = !!store.get('hook.' + st.sel, ''), def = !!store.get('hook', '');
+    note('#hooknote', own ? 'This save posts to its own webhook.' : def ? 'Using your default webhook.' : 'Not remembered: paste it again next time.', own || def ? 'ok' : '');
   }
 
   // ------------------------------------------------------------ boot
@@ -365,13 +377,8 @@
       }
     }
     if (!st.slots.length) html += st.source === 'local' && !st.local ? '<p class="empty">Choose the <b>sauvegardes</b> folder in your Delta Manager install folder.</p>' : '<p class="empty">No saves found.</p>';
-    html += '<div class="grp">Multiplayer</div>';
-    for (const l of st.leagues) {
-      html += '<button type="button" class="srow' + (l.id === st.sel ? ' on' : '') + '" data-id="' + esc(l.id) + '">' +
-        '<span class="bar" style="background:' + esc(/^#[0-9a-f]{3,8}$/i.test(l.color || '') ? l.color : '#737B8B') + '"></span>' +
-        '<span><span class="nm" style="display:block">' + esc(l.name || l.id) + '</span><span class="v">' + esc([l.team || 'no team chosen', l.races + ' recap' + (l.races === 1 ? '' : 's')].join(' · ')) + '</span></span></button>';
-    }
-    html += '<button type="button" class="btn mpadd" data-act="mpnew">+ New season from race recaps</button>';
+    // Multiplayer seasons have their own tab; the column lists the save slots only.
+    html += '<button type="button" class="btn mpadd" data-act="mppage">Multiplayer seasons' + (st.leagues.length ? ' (' + st.leagues.length + ')' : '') + ' →</button>';
     // In the browser everything (seasons, journals, notes) lives in this browser: a backup file keeps it safe.
     if (st.source === 'local') html += '<div class="bk"><button type="button" class="btn" data-act="backup">Backup</button><button type="button" class="btn" data-act="restore">Restore</button><input type="file" id="bkfile" accept=".json,application/json" hidden></div><p class="note" id="bknote">Seasons, stories and notes are kept in this browser.</p>';
     $('#slots').innerHTML = html;
@@ -385,15 +392,16 @@
     note('#bknote', 'Restored ' + Object.keys(data.data).length + ' items. Reloading…', 'ok'); setTimeout(() => location.reload(), 800);
   });
   $('#slots').addEventListener('click', e => {
+    if (e.target.closest('[data-act=mppage]')) { showPage('mp'); return; }
     if (e.target.closest('[data-act=backup]')) {
       const data = {};
-      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('dmsc.') && k !== 'dmsc.hook') data[k] = localStorage.getItem(k); }
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('dmsc.') && !k.startsWith('dmsc.hook')) data[k] = localStorage.getItem(k); }
       const url = URL.createObjectURL(new Blob([JSON.stringify({ tool: 'DM Save Card', version: 1, at: new Date().toISOString(), data })], { type: 'application/json' }));
       const a = document.createElement('a'); a.href = url; a.download = 'dm-savecard-backup-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2000); note('#bknote', 'Backup saved (' + Object.keys(data).length + ' items, without the webhook).', 'ok'); return;
     }
     if (e.target.closest('[data-act=restore]')) return $('#bkfile').click();
-    if (e.target.closest('[data-act=mpnew]')) return newLeagueForm(); const b = e.target.closest('.srow'); if (b) select(b.dataset.id); });
+    if (e.target.closest('[data-act=mpnew]')) return newLeagueForm(); const b = e.target.closest('.srow'); if (b) { st.page = 'chapter'; store.set('page', 'chapter'); select(b.dataset.id).then(renderTabs); } });
 
   async function poll() {
     if (st.source !== 'server' || document.hidden) return;
@@ -421,8 +429,15 @@
       if (isMp(id)) {
         const lg = await getLeague(id);
         if (!lg) throw new Error('This multiplayer season was not found.');
-        const b = RC.build(lg);
-        if (!b) { st.league = lg; st.mpBuild = null; throw new Error('No race recap in this season yet.'); }
+        let b = RC.build(lg);
+        const hostSlot = lg.host && st.slots.find(x => x.id === lg.host);
+        if (!b && hostSlot) {   // hosting without recaps: teams and players come from the save
+          const tf = await getFile(hostSlot.id, S.FILES.teams);
+          const names = ((tf && tf.teams) || []).map(t => S.shortName(t.name));
+          const roster = RC.rosterCheck(lg.roster, names).filter(p => p.match);
+          b = { files: null, races: [], last: null, season: null, teams: names, roster, players: roster.map(p => p.match) };
+        }
+        if (!b) { st.league = lg; st.mpBuild = null; throw new Error(lg.host ? 'The host save (' + lg.host + ') is not in the save folder, and this season has no race recaps.' : 'No race recap in this season yet.'); }
         st.league = lg; st.mpBuild = b; st.loadedMtime = null;
         // Hosting: the save is on this PC, so every card can use it; recaps still add race events and players.
         const host = lg.host && st.slots.find(x => x.id === lg.host);
@@ -432,7 +447,7 @@
           await Promise.all(Object.entries(S.FILES).map(async ([k, name]) => { files[k] = await getFile(host.id, name); }));
           st.files = files; st.loadedMtime = host.mtime;
         } else st.files = b.files;
-        const lastText = (lg.recaps.find(r => { const q = RC.parse(r.text); return q && q.key === b.last.key; }) || {}).text;
+        const lastText = b.last ? (lg.recaps.find(r => { const q = RC.parse(r.text); return q && q.key === b.last.key; }) || {}).text : null;
         st.exp = lastText ? R.parseExport(lastText) : null; st.expName = 'Race recap';
       } else {
         st.league = null; st.mpBuild = null; st.hostMode = false;
@@ -443,6 +458,7 @@
       compute();
       if (isMp(id) && !st.hostMode && !MP_KINDS.has(st.opt.kind)) st.opt.kind = 'race';
       await syncJournal(id);
+      if (st.page === 'mp') { renderMpPage(); renderTabs(); return; }
       if (!keepShell || !$('#card')) shell();
       await update();
     } catch (err) {
@@ -466,19 +482,52 @@
       '<div class="tiles">' + (f ? tile(s.preseason || f.pos == null ? '–' : 'P' + f.pos + (f.tied ? '=' : ''), 'Championship') + tile(s.preseason ? '–' : T.fmtPts(f.points), 'Points') +
         tile(f.wins + ' · ' + f.podiums, 'Wins · podiums') + (isMp(st.sel) && !st.hostMode ? tile(st.mpBuild ? st.mpBuild.races.length + ' / ' + s.rounds.total : '–', 'Recaps') : tile(f.expected ? 'P' + f.expected : '–', 'Board target')) : '') + '</div></section>';
   }
-  const TABS_ALL = [['race', 'Race'], ['stretch', 'Summary'], ['episode', 'Chapter'], ['preview', 'Preview'], ['transfer', 'Contracts'], ['duel', 'Duel'], ['devrace', 'Development'], ['wrapped', 'Wrapped']];
-  const MORE_ALL = [['seasonStart', 'Season preview'], ['seasonEnd', 'Season review'], ['championship', 'Championship'], ['rnd', 'R&D update'], ['paddock', 'Paddock news'], ['strategy', 'Race strategy'], ['us', 'NASCAR recap']];
+  // Top bar: Chapter leads (the playthrough), every card type sits underneath it, grouped by when you post it.
+  // Multiplayer has its own tab: seasons, recaps, players, host save.
+  const GROUPS = [
+    ['story', 'Story', [['episode', 'Chapter'], ['stretch', 'Race summary']]],
+    ['weekend', 'Race weekend', [['preview', 'Preview'], ['race', 'Race result'], ['strategy', 'Race strategy'], ['us', 'NASCAR recap']]],
+    ['team', 'Team', [['duel', 'Teammate duel'], ['devrace', 'Development'], ['rnd', 'R&D update'], ['transfer', 'Contracts'], ['paddock', 'Paddock news']]],
+    ['season', 'Season', [['seasonStart', 'Season preview'], ['championship', 'Championship'], ['seasonEnd', 'Season review'], ['wrapped', 'Wrapped']]]
+  ];
   // Post types that work on race recaps alone (multiplayer: no save).
   const MP_KINDS = new Set(['race', 'stretch', 'episode', 'duel', 'wrapped', 'championship', 'seasonEnd', 'strategy', 'us']);
   function renderTabs() {
-    const k = st.opt.kind, on = !!st.summary && !!st.sel;
-    const mp = isMp(st.sel) && !st.hostMode, TABS = TABS_ALL.filter(([v]) => !mp || MP_KINDS.has(v)), MORE = MORE_ALL.filter(([v]) => !mp || MP_KINDS.has(v));
-    $('#tabs').innerHTML = !on ? '' : TABS.map(([v, l]) => '<button type="button" class="tab' + (v === k ? ' on' : '') + '" data-kind="' + v + '"' + (v === k ? ' aria-current="page"' : '') + '>' + l + '</button>').join('') +
-      '<label class="tab more' + (MORE.some(([v]) => v === k) ? ' on' : '') + '"><select id="tab-more" aria-label="More post types"><option value="">' + ((MORE.find(([v]) => v === k) || [0, 'More'])[1]) + ' ▾</option>' +
-      MORE.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select></label>';
+    const k = st.opt.kind, page = st.page || 'chapter';
+    $('#tabs').innerHTML = '<button type="button" class="tab' + (page === 'chapter' ? ' on' : '') + '" data-page="chapter"' + (st.sel ? '' : ' disabled') + '>Chapter</button>' +
+      '<button type="button" class="tab' + (page === 'mp' ? ' on' : '') + '" data-page="mp">Multiplayer' + (st.leagues.length ? ' <i class="count-pill">' + st.leagues.length + '</i>' : '') + '</button>';
+    const sub = $('#subtabs'); if (!sub) return;
+    const on = page === 'chapter' && !!st.summary && !!st.sel;
+    sub.hidden = !on;
+    if (!on) { sub.innerHTML = ''; return; }
+    const mp = isMp(st.sel) && !st.hostMode;
+    sub.innerHTML = GROUPS.map(([id, name, kinds]) => {
+      const ks = kinds.filter(([v]) => !mp || MP_KINDS.has(v)); if (!ks.length) return '';
+      return '<div class="sgrp' + (id === 'story' ? ' lead' : '') + '"><span class="sg-name">' + esc(name) + '</span>' +
+        ks.map(([v, l]) => '<button type="button" class="sub' + (v === k ? ' on' : '') + (v === 'episode' ? ' main' : '') + '" data-kind="' + v + '"' + (v === k ? ' aria-current="page"' : '') + '>' + esc(l) + '</button>').join('') + '</div>';
+    }).join('');
+  }
+  // Chapter page = the composer for the open save or season; Multiplayer page = manage seasons.
+  async function showPage(page) {
+    st.page = page; store.set('page', page);
+    if (page === 'mp') { renderMpPage(); renderTabs(); return; }
+    renderTabs();
+    if (!st.sel) { pickDefault(); return; }
+    if (st.summary && st.files) { shell(); await update(); } else await select(st.sel);
+  }
+  function renderMpPage() {
+    const cur = isMp(st.sel) ? st.sel : null;
+    const cards = st.leagues.map(l => '<button type="button" class="srow' + (l.id === cur ? ' on' : '') + '" data-mp="' + esc(l.id) + '"><span class="bar" style="background:' + esc(/^#[0-9a-f]{3,8}$/i.test(l.color || '') ? l.color : '#737B8B') + '"></span>' +
+      '<span><span class="nm" style="display:block">' + esc(l.name || l.id) + '</span><span class="v">' + esc([l.category, l.host ? 'host save' : l.team || 'no team chosen', l.races ? l.races + ' recap' + (l.races === 1 ? '' : 's') : l.host ? null : '0 recaps'].filter(Boolean).join(' · ')) + '</span></span></button>').join('');
+    $('#main').innerHTML = sec('Multiplayer seasons') +
+      '<p class="note">A multiplayer season follows one league: built from your host save, from race recaps, or both. Pick one to manage it; its cards are under <b>Chapter</b>.</p>' +
+      '<div class="mplist">' + (cards || '<p class="note">No multiplayer season yet.</p>') + '</div>' +
+      '<div class="actions top"><button class="btn pri" type="button" data-act="mpnew">+ New multiplayer season</button>' + (cur ? '<button class="btn" type="button" data-act="tochapter2">Open its cards (Chapter)</button>' : '') + '</div>' +
+      (cur && st.league && st.mpBuild ? mpPanel() : '');
   }
   function chooseKind(k) {
-    const sel = $('#o-kind'); if (!sel || !k || k === st.opt.kind) return;
+    const sel = $('#o-kind'); if (!sel || !k) return;
+    if (k === st.opt.kind) return;
     sel.value = k; sel.dispatchEvent(new Event('change', { bubbles: true }));
   }
   // ------------------------------------------------------------ how it works (dialog, opens on the part that fits the screen)
@@ -496,8 +545,8 @@
     d.querySelectorAll('.hlp-tab').forEach(x => x.classList.toggle('on', x === b));
     d.querySelectorAll('.hlp-part').forEach(x => { x.hidden = x.dataset.part !== b.dataset.help; });
   });
-  $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-kind]'); if (b) chooseKind(b.dataset.kind); });
-  $('#tabs').addEventListener('change', e => { if (e.target.id === 'tab-more') chooseKind(e.target.value); });
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-page]'); if (b && !b.disabled) showPage(b.dataset.page); });
+  $('#subtabs').addEventListener('click', e => { const b = e.target.closest('[data-kind]'); if (b) chooseKind(b.dataset.kind); });
 
   // What each post type can do: card options, text sources, voices. The page shows only these.
   const KIND_NAMES = { race: 'Race & season', stretch: 'Race summary', episode: 'Chapter', preview: 'Raceweek preview', transfer: 'Here we go', duel: 'Teammate duel', devrace: 'Development race', wrapped: 'Season wrapped',
@@ -521,10 +570,10 @@
     const s = st.summary, o = st.opt, f = s.focus;
     const sel = (id, opts, val) => '<select id="' + id + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (v === val ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
     const cb = (id, label, on) => '<label class="f cb"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '> ' + label + '</label>';
-    const hook = store.get('hook', '');
+    const hook = hookFor(st.sel), hookOwn = !!store.get('hook.' + st.sel, '');
     const server = st.source === 'server';
     $('#main').innerHTML =
-      hero(s, f) + mpPanel() +
+      hero(s, f) + (isMp(st.sel) ? '<p class="note mpnote">Multiplayer season <b>' + esc((st.league && st.league.name) || '') + '</b>: recaps, players and host save are in the <b>Multiplayer</b> tab.</p>' : '') +
       (s.cheat ? '<p class="alert"><b>Cheat mode</b> is on in this save. The card says so in the footer.</p>' : '') +
       // One settings bar: card options and text options for this post type only.
       '<section class="settings" aria-label="Settings">' +
@@ -556,7 +605,7 @@
             '<button class="btn pri" data-cap="ai" type="button" data-act="pasteai">Paste answer</button>' +
             '<button class="btn" type="button" data-act="prompt">Copy as AI prompt</button><span class="note" id="gennote"></span></div>' +
           '<textarea class="txt" id="txt" spellcheck="true" aria-label="Post text"></textarea>' +
-          '<div class="actions"><button class="btn" type="button" data-act="copytxt">Copy text</button><button class="btn" type="button" data-act="savepost" id="savepost" title="Keep this card and text in the playthrough: chapter list, storyline and season book">Save as chapter</button><span class="count" id="count"></span><span class="note" id="txtnote"></span></div>' +
+          '<div class="actions"><button class="btn" type="button" data-act="copytxt">Copy text</button><span class="count" id="count"></span><span class="note" id="txtnote"></span></div>' +
           '<div class="help">' + sec('Writing help') +
             '<textarea class="txt notes" id="notes" spellcheck="true" placeholder="My notes: what I decided and why, what I expected, how it felt, what is next… (kept per save and round)" aria-label="My notes"></textarea>' +
             '<div class="filters tight"><label class="f">Help me <select id="wh-mode">' + Object.entries(AS.MODES).map(([v, m]) => '<option value="' + v + '"' + (v === o.whMode ? ' selected' : '') + '>' + m.label + '</option>').join('') + '</select></label><span class="note" id="whgoes"></span></div>' +
@@ -582,13 +631,16 @@
         '</div>' +
       '</div>' +
       '<section class="story" data-cap="story" id="story" aria-label="Playthrough"></section>' +
+      '<section class="story" id="ptbar" aria-label="Playthrough"></section>' +
       '<canvas id="card" width="2400" height="1350" hidden></canvas>' +
       ('<section class="post" id="post">' + sec('Post to Discord') +
           '<div class="tray" id="tray"></div>' +
           '<div class="row"><label class="f">Text <select id="posttext"></select></label><span class="count" id="postcount"></span></div>' +
           '<div class="row"><input type="password" id="hook" autocomplete="off" spellcheck="false" placeholder="Webhook URL: ask the moderators of your Discord server for one" value="' + esc(hook) + '" aria-label="Discord webhook URL">' +
           '<button class="btn pri" type="button" data-act="post" id="postbtn">Post</button></div>' +
-          '<label class="cb"><input type="checkbox" id="remember"' + (hook ? ' checked' : '') + '> Remember the webhook ' + (server ? 'on this PC' : 'in this browser') + '</label>' +
+          '<label class="cb"><input type="checkbox" id="remember"' + (hookOwn ? ' checked' : '') + '> Use this webhook for <b>this save</b> (remembered ' + (server ? 'on this PC' : 'in this browser') + ')</label>' +
+          '<label class="cb"><input type="checkbox" id="rememberall"' + (store.get('hook', '') ? ' checked' : '') + '> Use it as the default for saves without their own webhook</label>' +
+          '<p class="note" id="hooknote">' + (hookOwn ? 'This save posts to its own webhook.' : hook ? 'Using your default webhook.' : '') + '</p>' +
           '<p class="note" id="postnote">Collect cards from any tab with “Add to post”, pick the text, post them as one message (up to 10 images). Without collected cards the current card is posted. Nobody gets pinged.</p>' +
           '<p class="note">No webhook yet? <b>Ask the moderators of your Discord server</b>: they create one for the channel or your thread. Keep it to yourself; it works like a password.</p></section>'
         );
@@ -609,7 +661,7 @@
     document.querySelectorAll('[data-cap]').forEach(el => { el.hidden = !on[el.dataset.cap]; });
     $('#sg-card').hidden = !Object.values(c.card).some(Boolean);
     $('#genbtn').textContent = c.ai ? 'Open in Claude' : 'New wording';
-    if ($('#savepost')) $('#savepost').hidden = o.kind === 'episode';   // the chapter tab has its own button
+    if ($('#ptbar')) $('#ptbar').hidden = o.kind === 'episode';   // the chapter tab shows the full playthrough section
     store.set('opt', o);
   }
 
@@ -773,8 +825,8 @@
 
   // Any post (race card, summary, duel, wrapped …) can be a chapter of the playthrough: its text, a small copy of the card, the round.
   async function savePostChapter() {
-    if (!st.journal || !st.summary) { note('#txtnote', 'No playthrough journal for this save yet.', 'err'); return; }
-    const text = $('#txt').value.trim(); if (!text) { note('#txtnote', 'Write or generate the text first.', 'err'); return; }
+    if (!st.journal || !st.summary) { note('#ptnote', 'No playthrough journal for this save yet.', 'err'); return; }
+    const text = $('#txt').value.trim(); if (!text) { note('#ptnote', 'Write or generate the text first.', 'err'); return; }
     const o = st.opt, s = st.summary, f = s.focus || {};
     const head = (/^\*\*(.+?)\*\*/m.exec(text) || /^#+\s*(.+)$/m.exec(text) || [])[1];
     const kindName = KIND_NAMES[o.kind] || o.kind;
@@ -787,7 +839,8 @@
       title: (head || kindName + extra).replace(/[*_~`]/g, '').slice(0, 90), text, lang: o.lang, img,
       pos: f.pos ?? null, points: f.points ?? null, circuit: s.last ? s.last.name : null });
     await saveJournal();
-    note('#txtnote', 'Saved as chapter ' + ch.no + ' (' + kindName + extra + '). It shows in the chapter list, the storyline and the season book.', 'ok');
+    renderPtBar();
+    note('#ptnote', 'Saved as chapter ' + ch.no + ' (' + kindName + extra + ').', 'ok');
     return ch;
   }
   async function saveChapter(text) {
@@ -848,8 +901,30 @@
     $('#cfdbtn').textContent = st.cfd >= steps.length ? (st.opt.lang === 'nl' ? 'Klaar · opnieuw' : 'Done · again') : (st.opt.lang === 'nl' ? 'Volgende: ' : 'Next: ') + (steps[st.cfd].kind === 'txt' ? (st.opt.lang === 'nl' ? 'tekst ' : 'text ') + st.cfd + '/' + (steps.length - 1) : '');
     if (st.cfd >= steps.length) st.cfd = 0;
   }
+  // Playthrough bar on every other tab: keep this post as a chapter, see the chapters so far.
+  function renderPtBar() {
+    const box = $('#ptbar'); if (!box || st.opt.kind === 'episode') return;
+    const J = st.journal, s = st.summary;
+    if (!J || !s || !s.focus) { box.innerHTML = sec('Playthrough') + '<p class="note">No team in this save to follow yet.</p>'; return; }
+    const o = st.opt, kindName = KIND_NAMES[o.kind] || o.kind, src = o.kind + (o.kind === 'wrapped' ? ':' + o.slide : '');
+    const L = J.last || {};
+    const same = J.chapters.find(c => c.season === L.season && c.round === L.round && (c.kind || 'chapter') === 'chapter' && c.source === src);
+    const nextNo = same ? same.no : (J.chapters.length ? J.chapters[J.chapters.length - 1].no + 1 : 1);
+    const S = J.series;
+    const list = J.chapters.slice().sort((a, b) => b.no - a.no).slice(0, 5).map(c => '<li><b>' + (c.kind === 'prologue' ? '0' : esc(c.no)) + '</b><span>' + esc(c.title || '') + ' · ' +
+      esc([c.season, c.round ? 'R' + c.round : null, c.sourceName].filter(Boolean).join(' · ')) + '</span></li>').join('');
+    box.innerHTML = sec('Playthrough') +
+      (S && S.name ? '<p class="note"><b>' + esc(S.name) + '</b>' + (S.goal && S.goal.type ? ' · goal: ' + esc(Ep.goalText(S.goal, o.lang)) : '') + '</p>' : '') +
+      '<div class="story-grid"><div><h3>This post</h3>' +
+        '<p class="note">Keep this ' + esc(kindName.toLowerCase()) + ' card and its text in the story: it shows in the chapter list, on the storyline card and in the season book. The next Chapter continues from here.</p>' +
+        '<div class="actions"><button class="btn pri" type="button" data-act="savepost" id="savepost">' + (same ? 'Update chapter ' + esc(same.no) : 'Save as chapter ' + esc(nextNo)) + '</button><span class="note" id="ptnote"></span></div></div>' +
+      '<div><h3>Chapters</h3>' + (list ? '<ul class="chapters">' + list + '</ul>' : '<p class="note">No chapters saved yet.</p>') +
+        '<div class="actions"><button class="btn" type="button" data-act="book"' + (J.chapters.length ? '' : ' disabled') + '>Season book (HTML)</button>' +
+        '<button class="btn" type="button" data-act="tochapter">Open the Chapter tab</button><span class="note" id="stnote"></span></div></div></div>';
+  }
   function renderPreview() {
     cfdReset();
+    renderPtBar();
     const txt = $('#txt').value;
     $('#txt').rows = Math.min(22, Math.max(8, txt.split('\n').length + 1));
     // Longer than one Discord message: shown and posted as several messages, split at paragraph breaks.
@@ -1020,7 +1095,8 @@
     else if (id === 'o-table') o.table = e.target.value;
     else if (id === 'o-live') o.live = e.target.checked;
     else if (id === 'expfile') { const file = e.target.files[0]; if (file) useExport(await file.text(), file.name); e.target.value = ''; return; }
-    else if (id === 'remember') { if (e.target.checked) store.set('hook', $('#hook').value.trim()); else store.del('hook'); return; }
+    else if (id === 'remember') { if (e.target.checked) store.set('hook.' + st.sel, $('#hook').value.trim()); else { store.del('hook.' + st.sel); $('#hook').value = store.get('hook', ''); } hookNote(); return; }
+    else if (id === 'rememberall') { if (e.target.checked) store.set('hook', $('#hook').value.trim()); else store.del('hook'); hookNote(); return; }
     else return;
     store.set('opt', o);
     await update();
@@ -1037,7 +1113,8 @@
     if (id === 'mppastebox' && /=+\s*Race summary/i.test(e.target.value) && /## Championship standings AFTER[\s\S]*###\s*Constructors[\s\S]*P\d+\./i.test(e.target.value)) {
       const t = e.target.value; e.target.value = ''; e.target.hidden = true; await addRecaps([t]);
     }
-    if (id === 'hook' && $('#remember').checked) store.set('hook', e.target.value.trim());
+    // Typing changes the webhook of this save when it has its own, otherwise the default one.
+    if (id === 'hook') { const v = e.target.value.trim(); if ($('#remember').checked || store.get('hook.' + st.sel, '')) { if ($('#remember').checked) store.set('hook.' + st.sel, v); } else if ($('#rememberall') && $('#rememberall').checked) store.set('hook', v); }
     if (id === 'exppaste' && e.target.value.trim().length > 40 && useExport(e.target.value, 'Pasted export')) e.target.hidden = true;
   });
   // Drop a race export (.txt) anywhere on the page.
@@ -1066,10 +1143,14 @@
   }
 
   $('#main').addEventListener('click', async e => {
+    const mpb = e.target.closest('[data-mp]'); if (mpb) { await select(mpb.dataset.mp); return; }
     const b = e.target.closest('[data-act]'); if (!b) return;
     const act = b.dataset.act;
     if (act === 'cfd') { await cfdNext(); return; }
-    if (act === 'savepost') { if (st.opt.kind === 'episode') { const ch = await saveChapter($('#txt').value); if (ch) { note('#txtnote', 'Saved as ' + (ch.kind === 'prologue' ? 'the prologue' : 'chapter ' + ch.no) + '.', 'ok'); renderStory(); } } else await savePostChapter(); return; }
+    if (act === 'savepost') { await savePostChapter(); return; }
+    if (act === 'tochapter') { chooseKind('episode'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (act === 'mpnew') { newLeagueForm(); return; }
+    if (act === 'tochapter2') { showPage('chapter'); return; }
     if (act === 'copyimg') {
       try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob() })]); note('#imgnote', 'Copied. Paste it in Discord with Ctrl+V.', 'ok'); }
       catch (err) { note('#imgnote', 'This browser does not allow copying images. Use Download PNG.', 'err'); }

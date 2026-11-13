@@ -20,16 +20,12 @@
 <li>Check the card and text, then <b>post</b> (see “Posting”).</li></ol>
 <p>Save in the game and the card follows (Chrome/Edge or <code>start.bat</code>).</p>`],
         ['types', 'Post types', `
-<table><tr><td><b>Race</b></td><td>Last race and the championship.</td></tr>
-<tr><td><b>Summary</b></td><td>A stretch of races (from–to), with the races worth telling picked out.</td></tr>
-<tr><td><b>Chapter</b></td><td>The story of your playthrough: prologue or chapter, storyline, “next time”.</td></tr>
-<tr><td><b>Preview</b></td><td>The coming race.</td></tr>
-<tr><td><b>Contracts</b></td><td>Signings, extensions, departures.</td></tr>
-<tr><td><b>Duel</b></td><td>Your two drivers head to head.</td></tr>
-<tr><td><b>Development</b></td><td>Your car against the field over the season.</td></tr>
-<tr><td><b>Wrapped</b></td><td>The season in six slides.</td></tr>
-<tr><td><b>More ▾</b></td><td>Season preview and review, championship, R&amp;D, paddock news, race strategy, NASCAR recap.</td></tr></table>
-<p>The settings bar only shows what the chosen post type can do.</p>`],
+<p>The bar at the top groups the post types by when you post them. Pick a group, then a type in the row underneath.</p>
+<table><tr><td><b>Race weekend</b></td><td>Preview (the coming race) · Race result · Race strategy · NASCAR recap</td></tr>
+<tr><td><b>Story</b></td><td>Chapter (your playthrough) · Race summary (a run of races, from–to)</td></tr>
+<tr><td><b>Team</b></td><td>Teammate duel · Development · R&amp;D update · Contracts · Paddock news</td></tr>
+<tr><td><b>Season</b></td><td>Season preview · Championship · Season review · Wrapped (six slides)</td></tr></table>
+<p>A group opens on the type you used last. The settings bar only shows what the chosen type can do.</p>`],
         ['text', 'Text', `
 <ul><li><b>Source</b>: a ready-made text (<b>New wording</b> gives another version) or <b>Write with AI (chat)</b>: the facts go to a Claude chat, you paste the answer back.</li>
 <li><b>My notes</b> (under Writing help): what you decided and why. Kept per save and round, and used in every AI prompt.</li>
@@ -40,10 +36,11 @@
 <ul><li>A save that is already going: the first chapter is a <b>prologue</b> (the story so far).</li>
 <li>A new career: <b>Start new playthrough</b> with a name, a goal and the drivers you follow.</li>
 <li><b>Save as chapter</b> marks where the next chapter starts. <b>Season book (HTML)</b> gives all chapters as one page.</li>
-<li>Every other post can be a chapter too: <b>Save as chapter</b> under the text keeps a race card, summary, duel, wrapped slide … with its text in the story and the book.</li></ul>`],
+<li>Every other post can be a chapter too: <b>Save as chapter</b> in the <i>Playthrough</i> section below the post keeps a race card, summary, duel, wrapped slide … with its text in the story and the book.</li></ul>`],
         ['post', 'Posting', `
 <ul><li><b>Copy for Discord</b>: click, paste the card in your thread (Ctrl+V); click, paste the text with it and press Enter; click again for part 2 … One thing per paste, that is how Discord works.</li>
 <li><b>Copy image</b> / <b>Download PNG</b>: just the card.</li>
+<li>Each save can have its own webhook: tick <b>Use this webhook for this save</b> under Post to Discord.</li>
 <li><b>Add to post</b> collects cards from several tabs, <b>Post</b> sends them as one message through a webhook. Nobody is pinged.</li>
 <li><b>A webhook is requested from the Discord moderators</b> of your server. They create it for the channel (add <code>?thread_id=…</code> for your own thread). Keep it to yourself: whoever has it can post in that channel.</li></ul>`],
         ['mp', 'Multiplayer', `
@@ -78,16 +75,12 @@
 <li>Bekijk kaart en tekst en <b>post</b> (zie “Posten”).</li></ol>
 <p>Sla je op in de game, dan werkt de kaart mee (Chrome/Edge of <code>start.bat</code>).</p>`],
         ['types', 'Posttypes', `
-<table><tr><td><b>Race</b></td><td>Laatste race en het kampioenschap.</td></tr>
-<tr><td><b>Summary</b></td><td>Een reeks races (van–tot), met de races die het vertellen waard zijn.</td></tr>
-<tr><td><b>Chapter</b></td><td>Het verhaal van je playthrough: proloog of hoofdstuk, verhaallijn, “volgende keer”.</td></tr>
-<tr><td><b>Preview</b></td><td>De komende race.</td></tr>
-<tr><td><b>Contracts</b></td><td>Contracten, verlengingen, vertrek.</td></tr>
-<tr><td><b>Duel</b></td><td>Je twee coureurs tegen elkaar.</td></tr>
-<tr><td><b>Development</b></td><td>Je auto tegen het veld, over het seizoen.</td></tr>
-<tr><td><b>Wrapped</b></td><td>Het seizoen in zes slides.</td></tr>
-<tr><td><b>More ▾</b></td><td>Seizoensvoorbeschouwing en -terugblik, kampioenschap, R&amp;D, paddocknieuws, racestrategie, NASCAR-recap.</td></tr></table>
-<p>De instellingenbalk toont alleen wat het gekozen posttype kan.</p>`],
+<p>De balk bovenaan groepeert de posttypes naar wanneer je ze post. Kies een groep, daarna een type in de rij eronder.</p>
+<table><tr><td><b>Race weekend</b></td><td>Preview (de komende race) · Race result · Race strategy · NASCAR recap</td></tr>
+<tr><td><b>Story</b></td><td>Chapter (je playthrough) · Race summary (een reeks races, van–tot)</td></tr>
+<tr><td><b>Team</b></td><td>Teammate duel · Development · R&amp;D update · Contracts · Paddock news</td></tr>
+<tr><td><b>Season</b></td><td>Season preview · Championship · Season review · Wrapped (zes slides)</td></tr></table>
+<p>Een groep opent op het type dat je het laatst gebruikte. De instellingenbalk toont alleen wat het gekozen type kan.</p>`],
         ['text', 'Tekst', `
 <ul><li><b>Source</b>: een kant-en-klare tekst (<b>New wording</b> geeft een andere versie) of <b>Write with AI (chat)</b>: de feiten gaan naar een Claude-chat, jij plakt het antwoord terug.</li>
 <li><b>My notes</b> (onder Writing help): wat je besloot en waarom. Bewaard per save en ronde, en gebruikt in elke AI-prompt.</li>
@@ -98,10 +91,11 @@
 <ul><li>Een save die al loopt: het eerste hoofdstuk is een <b>proloog</b> (het verhaal tot nu toe).</li>
 <li>Een nieuwe carrière: <b>Start new playthrough</b> met een naam, een doel en de coureurs die je volgt.</li>
 <li><b>Save as chapter</b> legt vast waar het volgende hoofdstuk begint. <b>Season book (HTML)</b> geeft alle hoofdstukken op één pagina.</li>
-<li>Elke andere post kan ook een hoofdstuk zijn: <b>Save as chapter</b> onder de tekst bewaart een racekaart, samenvatting, duel, wrapped-slide … met tekst in het verhaal en het boek.</li></ul>`],
+<li>Elke andere post kan ook een hoofdstuk zijn: <b>Save as chapter</b> in het blok <i>Playthrough</i> onder de post bewaart een racekaart, samenvatting, duel, wrapped-slide … met tekst in het verhaal en het boek.</li></ul>`],
         ['post', 'Posten', `
 <ul><li><b>Copy for Discord</b>: klik, plak de kaart in je thread (Ctrl+V); klik, plak de tekst erbij en druk op Enter; klik opnieuw voor deel 2 … Eén ding per keer plakken, zo werkt Discord.</li>
 <li><b>Copy image</b> / <b>Download PNG</b>: alleen de kaart.</li>
+<li>Elke save kan een eigen webhook hebben: vink <b>Use this webhook for this save</b> aan onder Post to Discord.</li>
 <li><b>Add to post</b> verzamelt kaarten uit meerdere tabs, <b>Post</b> stuurt ze als één bericht via een webhook. Niemand wordt gepingd.</li>
 <li><b>Een webhook vraag je aan bij de Discord-moderators</b> van je server. Zij maken hem aan voor het kanaal (met <code>?thread_id=…</code> erachter voor je eigen thread). Houd hem voor jezelf: wie hem heeft, kan in dat kanaal posten.</li></ul>`],
         ['mp', 'Multiplayer', `

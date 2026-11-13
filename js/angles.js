@@ -53,13 +53,20 @@
     }
 
     // ---- streaks over the whole season (current state, not only new events)
+    // "Without points" = the team's points did not grow in that race (stage points and every finishing place count, NASCAR);
+    // only when the save has no standings per race, fall back to finishing outside the top 10.
+    let prevPts = 0;
     const season = (snap.races || []).map(r => {
       const b = r.mine.slice().sort((a, x) => (a.finished === x.finished ? (a.pos || 99) - (x.pos || 99) : a.finished ? -1 : 1))[0];
-      return { round: r.round, pos: b && b.finished ? b.pos : null };
+      const pts = r.standing ? r.standing.points : null;
+      const gained = pts != null ? +(pts - prevPts).toFixed(2) : null;
+      if (pts != null) prevPts = pts;
+      return { round: r.round, pos: b && b.finished ? b.pos : null, gained };
     });
+    const noPoints = x => (x.gained != null ? x.gained <= 0 : x.pos == null || x.pos > 10);
     const tail = season.slice(-3);
     if (tail.length === 3 && tail.every(x => x.pos != null && x.pos <= 3)) add('streak_hot', 4 + (season.slice(-4).length === 4 && season.slice(-4).every(x => x.pos != null && x.pos <= 3) ? 1 : 0), { n: countTail(season, x => x.pos != null && x.pos <= 3) }, { arc: 'form', state: true });
-    if (tail.length === 3 && tail.every(x => x.pos == null || x.pos > 10)) add('streak_cold', 4, { n: countTail(season, x => x.pos == null || x.pos > 10) }, { arc: 'form', state: true });
+    if (tail.length === 3 && tail.every(noPoints)) add('streak_cold', 4, { n: countTail(season, noPoints) }, { arc: 'form', state: true });
 
     // ---- championship
     for (const e of of('lead')) add(e.taken ? 'lead_taken' : 'lead_lost', e.taken ? 9 + late * 3 : 7, e, { arc: 'title' });
