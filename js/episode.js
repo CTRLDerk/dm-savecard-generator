@@ -2,9 +2,9 @@
    Chapter = number + title + main story + side stories + a callback to an earlier chapter + a cliffhanger.
    Text in English or Dutch (Discord markdown, max 2000 characters), and the facts for the AI version. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./chronicle.js'), require('./angles.js'));
-  else root.DMEpisode = factory(root.DMChronicle, root.DMAngles);
-})(typeof self !== 'undefined' ? self : this, function (Ch, A) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./chronicle.js'), require('./angles.js'), require('./text.js'));
+  else root.DMEpisode = factory(root.DMChronicle, root.DMAngles, root.DMText);
+})(typeof self !== 'undefined' ? self : this, function (Ch, A, TXT) {
   'use strict';
   const md = x => String(x == null ? '' : x).replace(/([\\*_~`|>])/g, '\\$1').replace(/@/g, '@\u200b');
   const fillRaw = (t, v) => t.replace(/\{(\w+)\}/g, (_, k) => (v[k] == null ? '' : v[k]));
@@ -18,7 +18,7 @@
   const W = {
     en: {
       chapter: 'Chapter', round: 'round {R} of {N}', pre: 'pre-season', meanwhile: 'Meanwhile', previously: 'Previously', next: 'Next time',
-      callback: 'This storyline started in chapter {N}: “{T}”.',
+      callback: 'This storyline started in chapter {N}: “{T}”.', motive: ['For {D} there is more at stake: {M}.', 'Keep an eye on {D}: {M}.'],
       standing: ['We are now P{P} with {X} points{G}.', 'That leaves us P{P} on {X} points{G}.'], gapAhead: ', {A} behind {B}', gapLead: ', {A} clear at the top',
       nextRace: 'Next up: {C}, round {R}.', seasonOver: 'The season is over. Time to plan the next one.',
       k: {
@@ -26,12 +26,13 @@
         season_end: { title: ['The season in one word: P{P}', 'Final standings: P{P}'], lead: ['The season is over: {T} finishes P{P} with {X} points{V}.'], line: 'Season over: P{P}.' },
         season_start: { title: ['A new season, a new chance', 'Season {S} begins'], lead: ['Season {S} starts. The board wants P{E}{L}. Our drivers: {D}.'], line: 'Season {S} has started.' },
         start: { title: ['Where it all begins', 'The story starts here'], lead: ['This is where our story starts: {T} in season {S}. The board wants P{E}. Our drivers: {D}.'], lead2: ['We pick up the story after round {R}: {T} is P{P} with {X} points. The board wants P{E}.'], line: 'The story of {T} starts here.' },
-        win: { title: ['Victory at {C}', '^From {SP} to the top step', 'We won {C}'], lead: ['We won at {C}! {D} started {SP} and nobody could stop us.', 'Victory at {C}: from {SP} on the grid to the top step with {D}.'], line: 'Win at {C} with {D}.' },
-        podium: { title: ['On the podium at {C}', '^{SP} to {FP} at {C}'], lead: ['^Podium at {C}: {D} went from {SP} to {FP}.', '{C} gave us a trophy: {FP} for {D}, from {SP} on the grid.'], line: '{FP} at {C} ({D}).' },
-        comeback: { title: ['The comeback at {C}', '{G} places at {C}'], lead: ['What a drive at {C}: {D} started {SP} and fought back to {FP}, {G} places gained.'], line: '{D} gained {G} places at {C} ({SP} to {FP}).' },
+        win: { title: ['Victory at {C}', '^From {SP} to the top step', 'We won {C}'], lead: ['We won at {C}! {D} started {SP} and nobody could stop us.', 'Victory at {C}: from {SP} on the grid to the top step with {D}.', '{C} is ours. {D} took the car from {SP} to the win.', 'First across the line at {C}: {D}, from {SP} on the grid.'], line: 'Win at {C} with {D}.' },
+        podium: { title: ['On the podium at {C}', '^{SP} to {FP} at {C}'], lead: ['^Podium at {C}: {D} went from {SP} to {FP}.', '{C} gave us a trophy: {FP} for {D}, from {SP} on the grid.', 'Champagne at {C}: {D} finished {FP} after starting {SP}.'], line: '{FP} at {C} ({D}).' },
+        comeback: { title: ['The comeback at {C}', '{G} places at {C}'], lead: ['What a drive at {C}: {D} started {SP} and fought back to {FP}, {G} places gained.', '{SP} on the grid, {FP} at the flag: {D} passed {G} cars at {C}.', 'Nobody gave us a chance from {SP} at {C}. {D} finished {FP}.'], line: '{D} gained {G} places at {C} ({SP} to {FP}).' },
         heartbreak: { title: ['Heartbreak at {C}', 'Out at {C}'], lead: ['{C} hurt. {D} started {SP} and never saw the flag{L}.', 'Pain at {C}: out of the race with {D}{L}, after starting {SP}.'], line: 'DNF at {C} ({D}).' },
-        bad_day: { title: ['A long day at {C}', 'Going backwards at {C}'], lead: ['{C} was hard work: {D} dropped from {SP} to {FP}.'], line: '{D} dropped from {SP} to {FP} at {C}.' },
-        quiet: { title: ['Points at {C}', 'A day at the office at {C}'], lead: ['A solid weekend at {C}: {D} started {SP} and finished {FP}.'], line: '{FP} at {C}.' },
+        bad_day: { title: ['A long day at {C}', 'Going backwards at {C}'], lead: ['{C} was hard work: {D} dropped from {SP} to {FP}.', 'We went the wrong way at {C}: {SP} at the start, {FP} at the finish for {D}.', 'A race to forget at {C}. {D} lost ground all day: {SP} to {FP}.'], line: '{D} dropped from {SP} to {FP} at {C}.' },
+        quiet: { title: ['{FP} at {C}', 'Banking {FP} at {C}'], lead: ['A solid weekend at {C}: {D} started {SP} and finished {FP}.', '{FP} at {C} for {D}, from {SP} on the grid.'],
+          leadRel: ['{FP} at {C} for {D}, from {SP} on the grid: {REL}.', '{D} brought it home {FP} at {C} after starting {SP}. That is {REL}.'], line: '{FP} at {C}.' },
         pole: { line: 'Pole position at {C}.' },
         race_digest: { line: 'Results since last time: {X}.' },
         streak_hot: { title: ['{N} podiums in a row', 'On a roll'], lead: ['We are on a roll: {N} podiums in a row.'], line: '{N} podiums in a row.' },
@@ -89,7 +90,7 @@
     },
     nl: {
       chapter: 'Hoofdstuk', round: 'ronde {R} van {N}', pre: 'voorseizoen', meanwhile: 'Ondertussen', previously: 'Eerder', next: 'Volgende keer',
-      callback: 'Dit verhaal begon in hoofdstuk {N}: “{T}”.',
+      callback: 'Dit verhaal begon in hoofdstuk {N}: “{T}”.', motive: ['Voor {D} staat er meer op het spel: {M}.', 'Let op {D}: {M}.'],
       standing: ['We staan nu P{P} met {X} punten{G}.', 'Daarmee staan we P{P} met {X} punten{G}.'], gapAhead: ', {A} achter {B}', gapLead: ', {A} voorsprong',
       nextRace: 'Volgende race: {C}, ronde {R}.', seasonOver: 'Het seizoen zit erop. Tijd om het volgende te plannen.',
       k: {
@@ -102,7 +103,7 @@
         comeback: { title: ['De inhaalrace op {C}', '{G} plekken op {C}'], lead: ['Wat een race op {C}: {D} startte als {SP} en vocht zich terug naar {FP}, {G} plekken gewonnen.'], line: '{D} won {G} plekken op {C} ({SP} naar {FP}).' },
         heartbreak: { title: ['Drama op {C}', 'Uitgevallen op {C}'], lead: ['{C} deed pijn. {D} startte als {SP} en zag de finish niet{L}.', 'Pijn op {C}: uitgevallen met {D}{L}, na een start als {SP}.'], line: 'Uitvaller op {C} ({D}).' },
         bad_day: { title: ['Een lange dag op {C}', 'Achteruit op {C}'], lead: ['{C} was zwaar: {D} zakte van {SP} naar {FP}.'], line: '{D} zakte van {SP} naar {FP} op {C}.' },
-        quiet: { title: ['Punten op {C}', 'Een gewone werkdag op {C}'], lead: ['Degelijk weekend op {C}: {D} startte als {SP} en finishte als {FP}.'], line: '{FP} op {C}.' },
+        quiet: { leadRel: ['{FP} op {C} voor {D}, vanaf {SP} op de grid: {REL}.', '{D} bracht de auto als {FP} thuis op {C} na een start vanaf {SP}. Dat is {REL}.'], title: ['{FP} op {C}', '{FP} binnen op {C}'], lead: ['Degelijk weekend op {C}: {D} startte als {SP} en finishte als {FP}.'], line: '{FP} op {C}.' },
         pole: { line: 'Pole position op {C}.' },
         race_digest: { line: 'Uitslagen sinds de vorige keer: {X}.' },
         streak_hot: { title: ['{N} podiums op rij', 'In vorm'], lead: ['We zijn in vorm: {N} podiums op rij.'], line: '{N} podiums op rij.' },
@@ -193,6 +194,7 @@
     if (d.name && ['win', 'podium', 'comeback', 'heartbreak', 'bad_day', 'quiet', 'pole'].includes(c.key)) {
       Object.assign(v, { C: md(d.name), D: md(crew(d.drivers)), SP: pos(d.start), FP: pos(d.pos), G: d.gain,
         L: d.outLap ? (lang === 'nl' ? ' (ronde ' + d.outLap + ')' : ' (lap ' + d.outLap + ')') : '' });
+      v.REL = md(TXT.relative(ctx.snap.story, lang));
     }
     switch (c.key) {
       case 'champions': Object.assign(v, { X: num(d.points), W: d.wins || 0 }); break;
@@ -340,7 +342,7 @@
       const nx = ep.finished ? w.seasonOver : ep.next ? fillRaw(w.nextRace, { C: md(ep.next.name), R: ep.next.round }) : '';
       if (nx) out.push('', '**' + w.next + ':** ' + nx);
     }
-    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
+    return TXT.tidy(out.join('\n').replace(/\n{3,}/g, '\n\n').trim()).slice(0, 2000);
   }
   const seasonVars = (x, P) => { const n = (k, a) => k + ' ' + a[k === 1 ? 0 : 1]; return { R: x.races, W: n(x.wins, P.nW), P: n(x.podiums, P.nP), D: n(x.dnf, P.nD) }; };
   const aname = (a, lang) => (lang === 'nl' ? (a.nl || a.label) : a.label).toLowerCase();
@@ -352,6 +354,7 @@
     }
     const w = W[lang] || W.en;
     if (!ep.main) return lang === 'nl' ? 'Rustige week' : 'A quiet week';
+    if (ep.main.key === 'quiet' && !variant) { const h = TXT.story(ep.ctx ? ep.ctx.snap : {}, lang).headline; if (h) return h; }
     const t = w.k[ep.main.key] && w.k[ep.main.key].title;
     if (!t) return w.k[ep.main.key] && w.k[ep.main.key].line ? fillRaw(w.k[ep.main.key].line, vars(ep.main, ep.ctx, lang)).replace(/\.$/, '') : ep.main.key;
     const r = rng([ep.season, ep.round, ep.main.key, variant || 0, 'title'].join('|'));
@@ -368,6 +371,7 @@
     const pick = a => (Array.isArray(a) ? a[Math.floor(r() * a.length)] : a);
     const num = n => { if (n == null) return '–'; const t = Number.isInteger(n) ? String(n) : (+n).toFixed(1); return lang === 'nl' ? t.replace('.', ',') : t; };
     const T = ep.team, out = [];
+    const SL = TXT.story(ep.ctx ? ep.ctx.snap : {}, lang);
     const ttl = opts.title || title(ep, lang, opts.variant);
     out.push('## ' + w.chapter + ' ' + ep.no + ' · ' + md(ttl));
     const sub = [ep.series && ep.series.name ? md(ep.series.name) : null, ep.category ? md(ep.category) + ' ' + ep.season : ep.season, ep.preseason ? w.pre : fillRaw(w.round, { R: ep.round, N: ep.total }), ep.circuit ? md(ep.circuit.name) : null, md(T.short)].filter(Boolean);
@@ -375,14 +379,22 @@
     // Main story
     if (ep.main) {
       const k = w.k[ep.main.key] || {};
-      const leads = ep.main.key === 'start' && ep.main.data.round ? k.lead2 : k.lead;
-      let t = fillRaw(pick(usable(leads || [k.line || ''], ep.main)), vars(ep.main, ep.ctx, lang));
+      const mv = vars(ep.main, ep.ctx, lang);
+      const leads = ep.main.key === 'start' && ep.main.data.round ? k.lead2 : k.leadRel && mv.REL ? k.leadRel : k.lead;
+      let t = fillRaw(pick(usable(leads || [k.line || ''], ep.main)), mv);
       if (ep.main.data && ep.main.data.incident && ep.main.key === 'heartbreak') t += ' ' + md(String(ep.main.data.incident).replace(/\.?$/, '.'));
       if (T.pos != null && !ep.preseason && !['champions', 'season_end', 'lead_taken', 'pass_up', 'pass_down', 'season_start', 'start'].includes(ep.main.key)) {
         const g = T.pos === 1 ? (T.gapBehind != null ? fillRaw(w.gapLead, { A: num(T.gapBehind) }) : '') : T.gapAhead != null && T.ahead ? fillRaw(w.gapAhead, { A: num(T.gapAhead), B: md(T.ahead) }) : '';
         t += ' ' + fillRaw(pick(w.standing), { P: T.pos, X: num(T.points), G: g });
+        // What the standing means: the margin to the board's target, or the race-day score against the rival.
+        const stake = [SL.target, SL.score].filter(Boolean);
+        if (stake.length && ep.no % 2 === 0) t += ' ' + md(stake[(ep.no / 2) % stake.length]);   // every other chapter, alternating
       }
       out.push('', t.trim());
+      // The person behind the result: one driver of this story and what they are driving for.
+      const crewNames = (ep.main.data && ep.main.data.drivers) || [], people = (ep.ctx.snap.people || []);
+      const who = people.filter(p => crewNames.some(n => n === p.name || String(p.name).endsWith(' ' + n) || String(n).endsWith(String(p.name).split(' ').pop()))).map(p => [p, TXT.motive(p, ep.season, lang)]).find(x => x[1]);
+      if (who && w.motive && ep.no % 3 === 1) out.push('', fillRaw(pick(w.motive), { D: md(who[0].name), M: who[1] }));
       if (ep.main.callback) out.push('', '*' + fillRaw(w.callback, { N: ep.main.callback.no, T: md(ep.main.callback.title) }) + '*');
     }
     // Side stories
@@ -391,12 +403,14 @@
     // Cliffhanger
     let cl = '';
     if (ep.cliff && (w.k[ep.cliff.key] || {}).cliff) cl = fillRaw(w.k[ep.cliff.key].cliff, vars(ep.cliff, ep.ctx, lang));
+    // A chase gets a concrete task for the next race; without any open question the task is the question.
+    if (SL.need && !ep.finished && (!cl || (ep.cliff && ep.cliff.key === 'chase'))) cl = md(SL.need);
     const nx = ep.finished ? w.seasonOver : ep.next ? fillRaw(w.nextRace, { C: md(ep.next.name), R: ep.next.round }) : '';
     if (cl || nx) out.push('', '**' + w.next + ':** ' + [nx, cl].filter(Boolean).join(' '));
     let text = out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
     // Keep under Discord's 2000 characters: drop side stories from the end first.
     while (text.length > 2000 && lines.length) { lines.pop(); return write(Object.assign({}, ep, { side: ep.side.slice(0, lines.length) }), opts); }
-    return text.slice(0, 2000);
+    return TXT.tidy(text).slice(0, 2000);
   }
 
   // Facts for the AI version (only what the journal and the save say).

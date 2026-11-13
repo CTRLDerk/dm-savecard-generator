@@ -75,15 +75,69 @@
     for (let x = 0, i = 0; x < W; x += sq, i++) { ctx.fillRect(x, y + (i % 2 ? sq : 0), sq, sq); }
   }
 
-  function logoBox(ctx, f, img, x, y, s) {
-    if (img && img.naturalWidth) {
-      ctx.fillStyle = C.white; ctx.fillRect(x, y, s, s);
-      const r = Math.min((s - 10) / img.naturalWidth, (s - 10) / img.naturalHeight);
-      const w = img.naturalWidth * r, h = img.naturalHeight * r;
-      ctx.drawImage(img, x + (s - w) / 2, y + (s - h) / 2, w, h);
-      ctx.strokeStyle = C.border; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, s - 1, s - 1);
-      return;
+  // Logo files often carry empty (transparent or white) margins: cut them off so the logo itself is centred.
+  const trimCache = new WeakMap();
+  function trimmed(img) {
+    if (trimCache.has(img)) return trimCache.get(img);
+    let out = { src: img, x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+    try {
+      const w = img.naturalWidth, h = img.naturalHeight, c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, w, h).data;
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4; if (d[i + 3] < 16 || (d[i] > 240 && d[i + 1] > 240 && d[i + 2] > 240)) continue;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      if (x1 >= x0 && y1 >= y0) out = { src: img, x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+    } catch (e) { /* keep the whole image */ }
+    trimCache.set(img, out); return out;
+  }
+  // A logo centred in a w×h area, without a box around it.
+  function drawLogo(ctx, img, x, y, w, h) {
+    const t = trimmed(img), r = Math.min(w / t.w, h / t.h), iw = t.w * r, ih = t.h * r;
+    ctx.drawImage(t.src, t.x, t.y, t.w, t.h, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+  }
+  // ------------------------------------------------------------ circuit drawing
+  // A closed smooth line through the layout points of the save (Catmull-Rom), fitted into w × h.
+  // o: { line, width, zones (braking zones in colour), start (marker), muted }
+  const trackCache = new WeakMap();
+  function trackPath(tr) {
+    if (trackCache.has(tr)) return trackCache.get(tr);
+    const P = tr.p, m = P.length, n = 10, out = [];
+    for (let i = 0; i < m; i++) {
+      const p0 = P[(i - 1 + m) % m], p1 = P[i], p2 = P[(i + 1) % m], p3 = P[(i + 2) % m];
+      for (let q = 0; q < n; q++) { const t = q / n, pt = [0, 0];
+        for (const k of [0, 1]) pt[k] = 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t * t + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t * t * t);
+        out.push(pt); }
     }
+    const xs = out.map(p => p[0]), ys = out.map(p => p[1]);
+    const res = { pts: out, x0: Math.min(...xs), y0: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs) || 1, h: Math.max(...ys) - Math.min(...ys) || 1, per: n };
+    trackCache.set(tr, res); return res;
+  }
+  function drawTrack(ctx, tr, x, y, w, h, o) {
+    if (!tr || !tr.p || tr.p.length < 4) return false;
+    o = o || {};
+    const T = trackPath(tr), lw = o.width || 5, sc = Math.min((w - lw * 2) / T.w, (h - lw * 2) / T.h);
+    const ox = x + (w - T.w * sc) / 2, oy = y + (h - T.h * sc) / 2;
+    const pt = i => { const p = T.pts[((i % T.pts.length) + T.pts.length) % T.pts.length]; return [ox + (p[0] - T.x0) * sc, oy + (p[1] - T.y0) * sc]; };
+    const stroke = (a, b, col, width) => { ctx.beginPath(); for (let i = a; i <= b; i++) { const [px, py] = pt(i); if (i === a) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+      ctx.strokeStyle = col; ctx.lineWidth = width; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); };
+    ctx.save();
+    const L = T.pts.length;
+    stroke(0, L, o.line || C.bgText, lw);
+    if (o.zones !== false) for (const z of tr.z || []) { const a = Math.round(z[0] * L), b = Math.round((z[0] + z[1]) * L); if (b > a) stroke(a, b, z[2] >= 4 ? C.red : C.orange, lw); }
+    if (o.start !== false) {
+      const i = Math.round((tr.start || 0) * T.per), [sx, sy] = pt(i), [nx, ny] = pt(i + (tr.dir === 'ccw' ? -3 : 3));
+      const ang = Math.atan2(ny - sy, nx - sx), r = Math.max(4, lw * 1.5);
+      ctx.translate(sx, sy); ctx.rotate(ang);
+      ctx.fillStyle = C.green; ctx.beginPath(); ctx.moveTo(r * 1.9, 0); ctx.lineTo(-r, -r * 1.1); ctx.lineTo(-r, r * 1.1); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    return true;
+  }
+
+  function logoBox(ctx, f, img, x, y, s) {
+    if (img && img.naturalWidth) { drawLogo(ctx, img, x, y, s, s); return; }
     ctx.fillStyle = f.color || C.navy; ctx.fillRect(x, y, s, s);
     const txt = f.number ? '#' + f.number : initials(f.name);
     ctx.fillStyle = readable(f.color); ctx.font = F(900, txt.length > 3 ? 22 : 28, true); ctx.textAlign = 'center';
@@ -166,6 +220,9 @@
         ctx.fillText(txt, sxp, sy0); sxp += ctx.measureText(txt).width;
       }
 
+      // One headline: the most telling thing about the season right now.
+      const SL = T.story(s, opts.lang);
+      if (SL.headline && !s.preseason && sy0 + 26 <= Y + 132) { ctx.font = F(800, 19, true); ctx.fillStyle = C.ink; ctx.fillText(fit(ctx, SL.headline.toUpperCase(), nmax), nx, sy0 + 26); }
       ctx.fillStyle = C.hair; ctx.fillRect(X + 38, Y + 140, PW - 66, 1);
 
       // Big position
@@ -179,7 +236,9 @@
       ctx.font = F(800, 34, true); ctx.fillStyle = C.ink;
       ctx.fillText(s.preseason ? t.preseason.toUpperCase() : T.fmtPts(f.points) + ' ' + t.pts.toUpperCase(), rx, Y + 214);
       ctx.font = F(500, 15); ctx.fillStyle = C.muted;
-      const gl = s.preseason ? (s.next ? t.firstRace + ': ' + s.next.name : '') : T.gapLine(f, t);
+      // The gap with what it is worth ("about two race wins") when that says more than the number.
+      const gap = f.pos === 1 ? f.gapBehind : f.gapAhead, wv = s.story && gap ? T.worth(gap, s.story, opts.lang) : '', wx = wv.indexOf('(') >= 0 ? ' ' + wv.slice(wv.indexOf('(')) : '';
+      const gl = s.preseason ? (s.next ? t.firstRace + ': ' + s.next.name : '') : T.gapLine(f, t) + wx;
       if (gl) ctx.fillText(fit(ctx, gl, rmax), rx, Y + 240);
       // Target / champion badge
       const ts = T.targetState(f);
@@ -313,5 +372,5 @@
     return canvas;
   }
 
-  root.DMCard = { draw, W, H, helpers: { C, F, fit, fitName, wrap, spaced, label, chip, stripe, logoBox, readable } };
+  root.DMCard = { draw, W, H, helpers: { C, F, fit, fitName, wrap, spaced, label, chip, stripe, logoBox, drawLogo, drawTrack, readable } };
 })(typeof self !== 'undefined' ? self : this);

@@ -3,9 +3,9 @@
    development race · season wrapped. Data from the save and the journal; text in EN/NL.
    Ratings are shown as words, never as numbers. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./save.js'), require('./views.js'));
-  else root.DMExtra = factory(root.DMSave, root.DMViews);
-})(typeof self !== 'undefined' ? self : this, function (S, V) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./save.js'), require('./views.js'), require('./text.js'));
+  else root.DMExtra = factory(root.DMSave, root.DMViews, root.DMText);
+})(typeof self !== 'undefined' ? self : this, function (S, V, T) {
   'use strict';
   const num = S.num, short = S.shortName;
   const KINDS = ['stretch', 'preview', 'transfer', 'duel', 'devrace', 'wrapped'];
@@ -104,7 +104,8 @@
       left: champ ? champ.left : null, maxTeam: champ ? champ.maxTeam : null, alive: champ ? (champ.teams.find(t => t.mine) || {}).alive : null,
       strong: strong ? { key: strong.key, label: strong.label, nl: strong.nl, w: rankWord(strong.rank, strong.of) } : null,
       weak: weak ? { key: weak.key, label: weak.label, nl: weak.nl, w: rankWord(weak.rank, weak.of) } : null,
-      drivers: f.drivers.map(d => ({ name: d.name, pos: d.pos })) };
+      drivers: f.drivers.map(d => ({ name: d.name, pos: d.pos })),
+      track: nx ? nx.track || null : null, type: nx ? nx.type || null : null, story: s.story || null, lines: T.story(s, 'en'), linesNl: T.story(s, 'nl') };
   }
 
   // ------------------------------------------------------------ 2. here we go (signings, extensions, departures)
@@ -127,7 +128,29 @@
     const c = contracts.find(x => x.name === name) || {};
     const type = ev && ev.name === name ? ev.type : c.until === s.season ? 'expiring' : 'contract';
     const lw = levelWord(num(d.level));
-    return { kind: 'transfer', type, season: s.season, category: s.category, team: f.short, teamName: f.name, color: f.color, logo: f.logo || null,
+    // The case for and against keeping this driver, from this season's results only.
+    const pro = { en: [], nl: [] }, con = { en: [], nl: [] };
+    const add = (o, en, nl) => { o.en.push(en); o.nl.push(nl); };
+    if (type === 'expiring' || type === 'contract') {
+      const mine = seasonRaces(files, s).map(r => r.cars.filter(c => c.teamId === f.id)), res = [], mates = [];
+      for (const cars of mine) for (const c of cars) { const isHim = (c.driverIds || []).includes(d.id) || (c.drivers || []).includes(name); (isHim ? res : mates).push(c); }
+      const fin = res.filter(c => c.finished), avg = fin.length ? fin.reduce((a, c) => a + c.position, 0) / fin.length : null;
+      const mfin = mates.filter(c => c.finished), mavg = mfin.length ? mfin.reduce((a, c) => a + c.position, 0) / mfin.length : null;
+      const row = s.drivers.find(x => x.id === d.id), teamPts = f.drivers.reduce((a, x) => a + (x.points || 0), 0), share = row && teamPts > 0 && f.drivers.length > 1 ? Math.round(100 * row.points / teamPts) : null;
+      const age = num(d.age), lvl = num(d.level), pot = num(d.potential), dn = res.length - fin.length;
+      if (res.length && fin.length) { const b = Math.min(...fin.map(c => c.position)); if (b <= 5) add(pro, 'Best result this season: P' + b, 'Beste resultaat dit seizoen: P' + b); }
+      if (share != null && share >= 55 && mates.length) add(pro, 'Scores ' + share + '% of our driver points', 'Scoort ' + share + '% van onze coureurspunten');
+      if (avg != null && mavg != null && avg + 1 <= mavg) add(pro, 'Ahead of the other car on average: P' + avg.toFixed(1) + ' v P' + mavg.toFixed(1), 'Gemiddeld voor de andere auto: P' + avg.toFixed(1).replace('.', ',') + ' om P' + mavg.toFixed(1).replace('.', ','));
+      if (pot != null && lvl != null && pot - lvl >= 1 && age != null && age <= 26) add(pro, 'Still improving at ' + age, 'Wordt op ' + age + '-jarige leeftijd nog beter');
+      if (res.length >= 3 && dn === 0) add(pro, 'Finished every race started (' + res.length + ')', 'Elke gestarte race uitgereden (' + res.length + ')');
+      if (!res.length && s.rounds.done > 0) add(con, 'Has not raced for us this season', 'Reed dit seizoen niet voor ons');
+      if (share != null && share <= 35 && mates.length) add(con, 'Scores only ' + share + '% of our driver points', 'Scoort maar ' + share + '% van onze coureurspunten');
+      if (avg != null && mavg != null && mavg + 1 <= avg) add(con, 'Behind the other car on average: P' + avg.toFixed(1) + ' v P' + mavg.toFixed(1), 'Gemiddeld achter de andere auto: P' + avg.toFixed(1).replace('.', ',') + ' om P' + mavg.toFixed(1).replace('.', ','));
+      if (dn >= 3) add(con, dn + ' retirements this season', dn + ' uitvalbeurten dit seizoen');
+      if (age != null && age >= 35) add(con, age + ' years old', age + ' jaar oud');
+      if (pot != null && lvl != null && pot - lvl < 0.3 && age != null && age >= 28) add(con, 'Little room left to improve', 'Weinig groei meer te verwachten');
+    }
+    return { kind: 'transfer', type, pro, con, season: s.season, category: s.category, team: f.short, teamName: f.name, color: f.color, logo: f.logo || null,
       name, face: d.image || null, cc: S.countryCode(d.country || d.nationality, d.flagPath), age: num(d.age), role: (ev && ev.role) || c.role || p.role || 'driver',
       until: (ev && ev.until) || c.until || p.until || null, levelWord: lw, potentialWord: levelWord(num(d.potential)),
       careerWins: num(d.careerWins), titles: num(d.championships), traits: p.traits || [], week: ev ? ev.week : s.week,
@@ -304,7 +327,10 @@
         if (v.until) out.push(fill(t.until, { U: v.until }) + ' ' + fill(t.role, { R: (ROLES[lang][v.role] || v.role) }));
         if (v.age != null || v.levelWord != null) out.push(fill(t.facts, { A: v.age ?? '?', L: v.levelWord != null ? w[v.levelWord].toLowerCase() : '?', P: v.potentialWord != null && v.potentialWord > (v.levelWord ?? -1) ? (lang === 'nl' ? ', potentieel ' : ', potential ') + w[v.potentialWord].toLowerCase() : '' }));
         if (v.careerWins) out.push(fill(t.wins, { W: v.careerWins, T: v.titles ? (lang === 'nl' ? ', ' + v.titles + ' titel' + (v.titles > 1 ? 's' : '') : ', ' + v.titles + ' title' + (v.titles > 1 ? 's' : '')) : '' }));
-        if (v.traits.length) out.push(fill(t.traits, { X: md(v.traits.join(', ')) }));
+        if (v.traits.length) out.push(fill(t.traits, { X: md(v.traits.map(x => T.trait(x, lang)).join(', ')) }));
+        const pro = (v.pro && v.pro[lang]) || [], con = (v.con && v.con[lang]) || [];
+        if (pro.length) out.push('', '**' + (lang === 'nl' ? 'Voor verlengen' : 'The case for') + '**', ...pro.map(x => '- ' + md(x)));
+        if (con.length) out.push('', '**' + (lang === 'nl' ? 'Tegen' : 'The case against') + '**', ...con.map(x => '- ' + md(x)));
         out.push('', v.type === 'expiring' ? t.ends : v.type === 'signing' || v.type === 'extension' ? t.ok : '');
       }
     } else if (kind === 'duel') {
@@ -332,7 +358,7 @@
       if (v.story.chapters > 1) out.push(fill(t.story, { N: v.story.chapters, A: md(v.story.firstTitle), B: md(v.story.lastTitle) }));
       out.push('', '#DeltaManager #Wrapped');
     }
-    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
+    return T.tidy(out.join('\n').replace(/\n{3,}/g, '\n\n').trim()).slice(0, 2000);
   }
 
   const TOPIC = {

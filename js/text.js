@@ -38,6 +38,122 @@
   const fmtPts = p => (p == null ? '–' : Number.isInteger(p) ? String(p) : p.toFixed(1));
   const fmtGap = g => (g == null ? '' : (Number.isInteger(g) ? String(g) : g.toFixed(1)));
   const fmtMoney = m => (m == null ? '–' : (Math.abs(m) >= 100 ? m.toFixed(0) : m.toFixed(1)) + 'M');
+  // ------------------------------------------------------------ story lines
+  // Short sentences that give the numbers a meaning (see DMSave.storyOf). Everything here follows from the save.
+  const SW = {
+    en: { pt: ['point', 'points'], race: ['race', 'races'], win: ['win', 'wins'], finishRun: '{N} finishes in a row', bestIn: 'Best result in {N} races', seasonBest: 'Best result of the season',
+      belowAvg: 'Below our average: P{P} against P{A}', aboveAvg: 'Better than our average: P{P} against P{A}', h2h: '{U}–{T} against {B} this season',
+      worth: { small: '{X}', half: '{X} (about half a race win)', one: '{X} (about one race win)', many: '{X} (about {N} race wins)' },
+      rivalAhead: 'Rival: {B}, {X} ahead of us.', rivalBehind: 'Rival: {B}, {X} behind us.', score: 'Head to head: {U}–{T}.', scoreLead: 'We beat them {U}–{T} on race days.', scoreTrail: 'They beat us {T}–{U} on race days.', scoreEven: 'Level on race days: {U}–{T}.',
+      targetOk: 'Target P{E}: {X} clear of {B} in P{Q}.', targetOkNo: 'Target P{E}: on course.', targetMiss: 'Target P{E}: {X} short of {B}.', targetMissNo: 'Target P{E}: not there yet.',
+      need: 'Outscore {B} by more than {X} at {C} and P{Q} is ours.', needLevel: 'Finish ahead of {B} at {C} and P{Q} is ours.', needFar: 'P{Q} is {W} away. Catching {B} takes more than one race.', defend: '{B} needs more than {X} on us at {C} to take P{P}.',
+      titleOff: 'The title is out of reach.', titleOn: 'The title: {W} behind with {L} to go.',
+      types: { speed: 'speed circuit', technical: 'technical circuit', mixed: 'mixed circuit', oval: 'oval', street: 'street circuit', road: 'road course' }, km: 'km', laps: 'laps', brake: 'heavy braking zones',
+      poll: { win: 'Win', podium: 'Podium', off: 'Off the podium', top: 'Top {N}', range: 'P{A}–P{B}', lower: 'Lower than P{N}', points: 'Points', none: 'Lower' } },
+    nl: { pt: ['punt', 'punten'], race: ['race', 'races'], win: ['zege', 'zeges'], finishRun: '{N} finishes op rij', bestIn: 'Beste resultaat in {N} races', seasonBest: 'Beste resultaat van het seizoen',
+      belowAvg: 'Onder ons gemiddelde: P{P} tegen P{A}', aboveAvg: 'Beter dan ons gemiddelde: P{P} tegen P{A}', h2h: '{U}–{T} tegen {B} dit seizoen',
+      worth: { small: '{X}', half: '{X} (ongeveer een halve racezege)', one: '{X} (ongeveer één racezege)', many: '{X} (ongeveer {N} racezeges)' },
+      rivalAhead: 'Rivaal: {B}, {X} voor ons.', rivalBehind: 'Rivaal: {B}, {X} achter ons.', score: 'Onderling: {U}–{T}.', scoreLead: 'Op racedagen winnen wij met {U}–{T}.', scoreTrail: 'Op racedagen winnen zij met {T}–{U}.', scoreEven: 'Gelijk op racedagen: {U}–{T}.',
+      targetOk: 'Doel P{E}: {X} voor op {B} op P{Q}.', targetOkNo: 'Doel P{E}: op koers.', targetMiss: 'Doel P{E}: {X} achter {B}.', targetMissNo: 'Doel P{E}: nog niet gehaald.',
+      need: 'Scoor op {C} meer dan {X} meer dan {B} en P{Q} is van ons.', needLevel: 'Finish op {C} voor {B} en P{Q} is van ons.', needFar: 'P{Q} is {W} weg. {B} inhalen kost meer dan één race.', defend: '{B} moet op {C} meer dan {X} op ons goedmaken voor P{P}.',
+      titleOff: 'De titel is buiten bereik.', titleOn: 'De titel: {W} achter met nog {L} te gaan.',
+      types: { speed: 'snel circuit', technical: 'technisch circuit', mixed: 'gemengd circuit', oval: 'oval', street: 'stratencircuit', road: 'wegcircuit' }, km: 'km', laps: 'ronden', brake: 'zware remzones',
+      poll: { win: 'Zege', podium: 'Podium', off: 'Naast het podium', top: 'Top {N}', range: 'P{A}–P{B}', lower: 'Lager dan P{N}', points: 'Punten', none: 'Lager' } }
+  };
+  const sfill = (t, v) => String(t).replace(/\{(\w+)\}/g, (_, k) => (v[k] == null ? '' : v[k]));
+  const TYPES = { vitesse: 'speed', speed: 'speed', technique: 'technical', technical: 'technical', mixte: 'mixed', mixed: 'mixed', ovale: 'oval', oval: 'oval', urbain: 'street', street: 'street', route: 'road', road: 'road' };
+  function trackType(type, lang) { const k = TYPES[String(type || '').toLowerCase()]; return k ? SW[lang === 'nl' ? 'nl' : 'en'].types[k] : ''; }
+  // "84 points, about two race wins": a gap measured against the best single race any team had this season.
+  function worth(gap, st, lang) {
+    const w = SW[lang === 'nl' ? 'nl' : 'en'], num = lang === 'nl' ? fmtGap(gap).replace('.', ',') : fmtGap(gap), X = num + ' ' + w.pt[gap === 1 ? 0 : 1];
+    const r = st && st.raceMax > 0 ? gap / st.raceMax : 0;
+    if (r < 0.4) return sfill(w.worth.small, { X });
+    if (r < 0.75) return sfill(w.worth.half, { X });
+    if (r < 1.5) return sfill(w.worth.one, { X });
+    return sfill(w.worth.many, { X, N: Math.round(r) });
+  }
+  // Driver characteristics as the save names them (French) → EN / NL. Unknown ones are shown as they are.
+  const TRAITS = { 'experimente': ['Experienced', 'Ervaren'], 'regulier': ['Consistent', 'Constant'], 'rapide': ['Fast', 'Snel'], 'legende': ['Legend', 'Legende'],
+    'maitre des qualifications': ['Qualifying master', 'Kwalificatiespecialist'], 'pilote payant': ['Pay driver', 'Betaalcoureur'], 'potentiel enorme': ['Huge potential', 'Enorm potentieel'],
+    'maitre de la pluie': ['Rain master', 'Regenspecialist'], 'rookie': ['Rookie', 'Rookie'], 'superstar': ['Superstar', 'Superster'], 'heros national': ['National hero', 'Nationale held'],
+    'agressif': ['Aggressive', 'Agressief'], 'prudent': ['Careful', 'Voorzichtig'], 'irregulier': ['Inconsistent', 'Wisselvallig'], 'fragile': ['Fragile', 'Kwetsbaar'], 'leader': ['Leader', 'Leider'] };
+  const tkey = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/_/g, ' ').toLowerCase().trim();
+  function trait(name, lang) { const m = TRAITS[tkey(name)]; return m ? m[lang === 'nl' ? 1 : 0] : String(name || '').replace(/_/g, ' '); }
+  // What a driver is driving for, as a short clause (only from what the save says about them).
+  function motive(p, season, lang) {
+    if (!p) return '';
+    const nl = lang === 'nl', has = k => (p.traits || []).some(t => tkey(t) === k);
+    if (p.until != null && season != null && p.until <= season) return nl ? 'het contract loopt na dit seizoen af' : 'the contract runs out after this season';
+    if (has('rookie') || (p.age != null && p.age <= 20)) return nl ? 'het is het rookieseizoen' : 'it is the rookie season';
+    if (has('legende')) return nl ? 'een legende heeft een naam hoog te houden' : 'a legend has a name to live up to';
+    if (p.careerWins === 0 && p.age != null && p.age >= 27) return nl ? 'een eerste zege in de carrière ontbreekt nog' : 'a first career win is still missing';
+    if (p.potential != null && p.level != null && p.potential - p.level >= 1.5 && p.age != null && p.age <= 25) return nl ? 'er zit meer talent in dan de resultaten laten zien' : 'there is more talent there than the results show so far';
+    if (p.age != null && p.age >= 36) return nl ? 'op ' + p.age + '-jarige leeftijd telt elk seizoen' : 'at ' + p.age + ' every season counts';
+    return '';
+  }
+  // The last result against our own season: a clause for a race that was neither a triumph nor a drama.
+  function relative(st, lang) {
+    if (!st || !st.last || st.last.pos == null) return '';
+    const nl = lang === 'nl', L = st.last, R = st.rival, bits = [];
+    if (st.finishRun >= 5 && st.finishRun < st.races) bits.push(nl ? 'de ' + st.finishRun + 'e finish op rij' : 'finish number ' + st.finishRun + ' in a row');
+    else if (st.races >= 3 && st.bestIn >= 3) bits.push(nl ? 'ons beste resultaat in ' + st.bestIn + ' races' : 'our best result in ' + st.bestIn + ' races');
+    else if (st.races >= 3 && st.avg != null) { const d = Math.round(st.avg - L.pos), a = Math.round(st.avg);
+      bits.push(d >= 2 ? (nl ? d + ' plaatsen beter dan ons gemiddelde (P' + a + ')' : d + ' places better than our average (P' + a + ')')
+        : d <= -2 ? (nl ? -d + ' plaatsen onder ons gemiddelde (P' + a + ')' : -d + ' places below our average (P' + a + ')') : (nl ? 'precies ons seizoensgemiddelde' : 'right on our season average')); }
+    if (R && R.lastUs != null && R.lastThem != null) bits.push(R.lastUs < R.lastThem ? (nl ? 'voor rivaal ' + R.short + ' (P' + R.lastThem + ')' : 'ahead of rival ' + R.short + ' (P' + R.lastThem + ')')
+      : (nl ? 'achter rivaal ' + R.short + ' (P' + R.lastThem + ')' : 'behind rival ' + R.short + ' (P' + R.lastThem + ')'));
+    else if (R && R.lastUs != null && R.lastThem == null) bits.push(nl ? 'terwijl rivaal ' + R.short + ' uitviel' : 'while rival ' + R.short + ' did not finish');
+    return bits.join(nl ? ', ' : ', ');
+  }
+
+  // Small grammar repairs on a finished text: "1 races", "Rounds 3–3", "X to X".
+  function tidy(text) {
+    return String(text == null ? '' : text)
+      .replace(/\b1 races\b/g, '1 race').replace(/\b1 wins\b/g, '1 win').replace(/\b1 podiums\b/g, '1 podium').replace(/\b1 zeges\b/g, '1 zege')
+      .replace(/\b(Rounds|Ronde|Ronden) (\d+)–\2\b/g, (_, w, n) => (w === 'Rounds' ? 'Round ' : 'Ronde ') + n)
+      .replace(/(\b1 race), van ([^\n]+?) tot \2(?=\n|$)/g, '$1, $2').replace(/(\b1 race), ([^\n]+?) to \2(?=\n|$)/g, '$1, $2');
+  }
+
+  // s: summary or snapshot-like { story, focus|team, next }. Returns plain sentences (no markdown).
+  function story(s, lang) {
+    lang = lang === 'nl' ? 'nl' : 'en';
+    const w = SW[lang], st = s && s.story, f = s && (s.focus || s.team), out = { headline: '', rival: '', score: '', target: '', need: '', title: '', poll: null };
+    const a = st && st.avg != null ? Math.round(st.avg) : null;
+    out.poll = a == null ? [w.poll.podium, w.poll.points, w.poll.none] : a <= 3 ? [w.poll.win, w.poll.podium, w.poll.off]
+      : a <= 6 ? [w.poll.podium, sfill(w.poll.range, { A: 4, B: a + 2 }), sfill(w.poll.lower, { N: a + 2 })]
+      : (x => [sfill(w.poll.top, { N: x }), sfill(w.poll.range, { A: x + 1, B: x + 5 }), sfill(w.poll.lower, { N: x + 5 })])(Math.max(5, 5 * Math.floor((a - 1) / 5)));
+    if (!st || !f) return out;
+    const pts = g => (lang === 'nl' ? fmtGap(g).replace('.', ',') : fmtGap(g)) + ' ' + w.pt[g === 1 ? 0 : 1];
+    const L = st.last, R = st.rival;
+    // One headline: the most telling thing about where we are now.
+    if (L && L.pos != null && st.races >= 3) {
+      if (st.finishRun >= 5 && st.finishRun < st.races) out.headline = sfill(w.finishRun, { N: st.finishRun });
+      else if (L.pos === st.seasonBest && st.bestIn >= 3 && st.bestIn === st.races) out.headline = w.seasonBest;
+      else if (st.bestIn >= 4) out.headline = sfill(w.bestIn, { N: st.bestIn });
+      else if (st.avg != null && L.pos - st.avg >= 4) out.headline = sfill(w.belowAvg, { P: L.pos, A: Math.round(st.avg) });
+      else if (st.avg != null && st.avg - L.pos >= 4) out.headline = sfill(w.aboveAvg, { P: L.pos, A: Math.round(st.avg) });
+    }
+    if (!out.headline && R && R.us + R.them >= 3) out.headline = sfill(w.h2h, { U: R.us, T: R.them, B: R.short });
+    if (R) {
+      out.rival = sfill(R.ahead ? w.rivalAhead : w.rivalBehind, { B: R.short, X: worth(R.gap, st, lang) });
+      if (R.us + R.them >= 2) out.score = sfill(R.us > R.them ? w.scoreLead : R.us < R.them ? w.scoreTrail : w.scoreEven, { U: R.us, T: R.them });
+    }
+    const tg = st.target;
+    if (tg) out.target = tg.ok ? (tg.margin != null && tg.team ? sfill(w.targetOk, { E: tg.pos, X: pts(tg.margin), B: tg.team, Q: tg.teamPos }) : sfill(w.targetOkNo, { E: tg.pos }))
+      : (tg.margin != null && tg.team ? sfill(w.targetMiss, { E: tg.pos, X: pts(tg.margin), B: tg.team }) : sfill(w.targetMissNo, { E: tg.pos }));
+    const nx = s.next;
+    if (nx && f.pos != null && st.left > 0) {
+      if (f.pos > 1 && f.ahead && f.gapAhead != null) {
+        out.need = f.gapAhead === 0 ? sfill(w.needLevel, { B: f.ahead, C: nx.name, Q: f.pos - 1 })
+          : st.raceMax > 0 && f.gapAhead >= st.raceMax ? sfill(w.needFar, { Q: f.pos - 1, W: worth(f.gapAhead, st, lang), B: f.ahead })
+          : sfill(w.need, { B: f.ahead, X: pts(f.gapAhead), C: nx.name, Q: f.pos - 1 });
+      } else if (f.pos === 1 && f.behind && f.gapBehind != null) out.need = sfill(w.defend, { B: f.behind, X: pts(f.gapBehind), C: nx.name, P: 1 });
+    }
+    if (f.pos > 1 && f.leaderGap != null && st.titleOpen != null && st.left > 0)
+      out.title = st.titleOpen ? sfill(w.titleOn, { W: worth(f.leaderGap, st, lang), L: st.left + ' ' + w.race[st.left === 1 ? 0 : 1] }) : w.titleOff;
+    return out;
+  }
+
   // Standings rows to show when space is short: the top 3, then the team above us, us and the team below us.
   // Returns indexes into the list; a jump in the indexes means rows were skipped.
   function standingsRows(n, me, max) {
@@ -169,5 +285,5 @@
     return text.slice(0, 2000);
   }
 
-  return { LABELS, L, discord, cut, fmtPts, fmtGap, fmtMoney, fmtDate, posLabel, standingsRows, gapLine, targetState, headerLine, surname };
+  return { LABELS, L, discord, cut, fmtPts, fmtGap, fmtMoney, fmtDate, posLabel, standingsRows, story, worth, trackType, trait, motive, relative, tidy, gapLine, targetState, headerLine, surname };
 });

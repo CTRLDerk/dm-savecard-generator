@@ -214,6 +214,7 @@
       await loadLeagues();
       renderSlots();
       let reopened = false;
+      if (FSA) { try { const h = await idb.get('imgdir'); if (h) { st.imgDir = h; st.imgDirOk = (await h.queryPermission({ mode: 'read' })) === 'granted'; renderSlots(); } } catch (e) { /* no image folder */ } }
       if (FSA) { try { const h = await idb.get('dir'); if (h) reopened = await openHandle(h, false); } catch (e) { /* no stored folder */ } }
       if (!reopened && isMp(st.sel) && st.leagues.some(x => x.id === st.sel)) select(st.sel);
     }
@@ -284,7 +285,7 @@
       '<p>Your save folder is remembered: <b>' + esc(h.name) + '</b>. The browser only asks once per visit whether the page may read it again.</p>' +
       '<div class="actions top"><button class="btn pri" type="button" id="reopen">Open ' + esc(h.name) + '</button><button class="btn" type="button" id="otherdir">Choose another folder</button></div>' +
       '<p class="note">Tip: when Chrome or Edge asks, pick <b>Allow on every visit</b> and the tool opens your saves straight away next time.</p>';
-    $('#reopen').addEventListener('click', () => openHandle(h, true).then(ok => { if (!ok) note('#folder', 'No permission given. Click again to retry.', 'err'); }));
+    $('#reopen').addEventListener('click', () => askImgDir().then(() => openHandle(h, true)).then(ok => { if (!ok) note('#folder', 'No permission given. Click again to retry.', 'err'); }));
     $('#otherdir').addEventListener('click', () => { st.dirPending = null; $('#pick').click(); });
   }
   async function localPoll() {
@@ -381,8 +382,11 @@
     html += '<button type="button" class="btn mpadd" data-act="mppage">Multiplayer seasons' + (st.leagues.length ? ' (' + st.leagues.length + ')' : '') + ' →</button>';
     // In the browser everything (seasons, journals, notes) lives in this browser: a backup file keeps it safe.
     if (st.source === 'local') html += '<div class="bk"><button type="button" class="btn" data-act="backup">Backup</button><button type="button" class="btn" data-act="restore">Restore</button><input type="file" id="bkfile" accept=".json,application/json" hidden></div><p class="note" id="bknote">Seasons, stories and notes are kept in this browser.</p>' +
-      '<div class="bk"><button type="button" class="btn" data-act="imgdir">' + (st.imgIndex ? 'Add a folder with images' : 'Faces and logos…') + '</button>' +
-      '<input type="file" id="imgdir" webkitdirectory multiple hidden></div><p class="note" id="imgdirnote">' + (st.imgIndex ? 'Images found: ' + [...st.imgIndex.values()].reduce((a, l) => a + l.length, 0) + '.' : 'Choose the Delta Manager game folder (and a mod’s workshop folder) once for faces and team logos. Nothing is uploaded.') + '</p>';
+      '<div class="bk"><button type="button" class="btn" data-act="imgdir">' + (st.imgDir ? (st.imgDirOk ? 'Images: ' + esc(st.imgDir.name) : 'Allow images (' + esc(st.imgDir.name) + ')') : 'Faces and logos…') + '</button>' +
+      '<button type="button" class="btn" data-act="imgonce" title="For a folder Chrome will not remember, such as Program Files">Choose once</button>' +
+      '<input type="file" id="imgdir" webkitdirectory multiple hidden></div><p class="note" id="imgdirnote">' +
+      (st.imgDir && st.imgDirOk ? 'Faces and logos come from this folder.' : st.imgDir ? 'Click to let the page read the images folder again.' :
+        st.imgIndex ? 'Images found: ' + [...st.imgIndex.values()].reduce((a, l) => a + l.length, 0) + '.' : 'Choose <code>Delta Manager\\resources</code> once for faces and team logos. Nothing is uploaded.') + '</p>';
     $('#slots').innerHTML = html;
   }
   $('#slots').addEventListener('change', async e => {
@@ -399,7 +403,7 @@
     for (const [k, v] of Object.entries(data.data)) { try { localStorage.setItem(k, v); } catch (err) { note('#bknote', 'The browser storage is full.', 'err'); return; } }
     note('#bknote', 'Restored ' + Object.keys(data.data).length + ' items. Reloading…', 'ok'); setTimeout(() => location.reload(), 800);
   });
-  $('#slots').addEventListener('click', e => {
+  $('#slots').addEventListener('click', async e => {
     if (e.target.closest('[data-act=mppage]')) { showPage('mp'); return; }
     if (e.target.closest('[data-act=backup]')) {
       const data = {};
@@ -409,7 +413,17 @@
       setTimeout(() => URL.revokeObjectURL(url), 2000); note('#bknote', 'Backup saved (' + Object.keys(data).length + ' items, without the webhook).', 'ok'); return;
     }
     if (e.target.closest('[data-act=restore]')) return $('#bkfile').click();
-    if (e.target.closest('[data-act=imgdir]')) return $('#imgdir').click();
+    if (e.target.closest('[data-act=imgonce]')) return $('#imgdir').click();
+    if (e.target.closest('[data-act=imgdir]')) {
+      if (!FSA) return $('#imgdir').click();
+      if (st.imgDir && !st.imgDirOk) { await askImgDir(); renderSlots(); if (st.sel) await update(); return; }
+      let h; try { h = await window.showDirectoryPicker({ id: 'dm-images', mode: 'read' }); }
+      catch (err) { note('#imgdirnote', 'No folder remembered. If Chrome says it cannot open the folder (Steam in Program Files), use “Choose once”.', 'err'); return; }
+      st.imgDir = h; st.imgDirOk = true; await idb.set('imgdir', h).catch(() => null);
+      st.logoKey = null; for (const [k, v] of st.images) if (!v) st.images.delete(k);
+      renderSlots(); note('#imgdirnote', 'Remembered: ' + h.name + '. Faces and logos come from here from now on.', 'ok');
+      if (st.sel) await update(); return;
+    }
     if (e.target.closest('[data-act=mpnew]')) return newLeagueForm(); const b = e.target.closest('.srow'); if (b) { st.page = 'chapter'; store.set('page', 'chapter'); select(b.dataset.id).then(renderTabs); } });
 
   async function poll() {
@@ -1052,6 +1066,25 @@
     }
     return best;
   }
+  // Remembered game folder (File System Access): walk the path from the save straight to the file, no listing.
+  async function askImgDir() {
+    if (!st.imgDir || st.imgDirOk) return;
+    try { st.imgDirOk = (await st.imgDir.requestPermission({ mode: 'read' })) === 'granted'; } catch (e) { st.imgDirOk = false; }
+    if (st.imgDirOk) { st.logoKey = null; for (const [k, v] of st.images) if (!v) st.images.delete(k); }
+  }
+  async function fileFromDir(path) {
+    if (!st.imgDir || !st.imgDirOk) return null;
+    const raw = String(path).replace(/\\/g, '/').split('/').filter(x => x && x !== '.' && !/^[a-z]:$/i.test(x));
+    const low = raw.map(x => x.toLowerCase()), name = st.imgDir.name.toLowerCase();
+    const tries = [];
+    const at = low.lastIndexOf(name); if (at >= 0) tries.push(raw.slice(at + 1));
+    const res = low.lastIndexOf('resources'); if (res >= 0) tries.push(name === 'resources' ? raw.slice(res + 1) : raw.slice(res));
+    tries.push(raw, ['resources'].concat(raw));
+    for (const parts of tries) {
+      try { let h = st.imgDir; for (const d of parts.slice(0, -1)) h = await h.getDirectoryHandle(d); return await (await h.getFileHandle(parts[parts.length - 1])).getFile(); } catch (e) { /* next try */ }
+    }
+    return null;
+  }
   function imageFrom(src) {
     return new Promise(resolve => { const im = new Image(); let done = false; const fin = ok => { if (done) return; done = true; resolve(ok ? im : null); };
       im.onload = () => fin(true); im.onerror = () => fin(false); setTimeout(() => fin(false), 3000); im.src = src; });
@@ -1061,7 +1094,7 @@
     if (st.source === 'server') return imageFrom('api/image?path=' + encodeURIComponent(path));
     const key = 'img:' + pathKey(path).join('/');
     let blob = null; try { blob = await idb.get(key); } catch (e) { blob = null; }
-    if (!blob) { const f = findFile(path); if (f) { blob = f; try { await idb.set(key, new Blob([await f.arrayBuffer()], { type: f.type || 'image/png' })); } catch (e) { /* not kept */ } } }
+    if (!blob) { const f = (await fileFromDir(path)) || findFile(path); if (f) { blob = f; try { await idb.set(key, new Blob([await f.arrayBuffer()], { type: f.type || 'image/png' })); } catch (e) { /* not kept */ } } }
     return blob ? imageFrom(URL.createObjectURL(blob)) : null;
   }
 
@@ -1070,7 +1103,7 @@
     const want = new Set();
     (function walk(o, depth) { if (!o || depth > 4) return; if (Array.isArray(o)) { o.slice(0, 40).forEach(x => walk(x, depth + 1)); return; }
       if (typeof o === 'object') for (const [k, v] of Object.entries(o)) { if ((k === 'face' || k === 'logo' || k === 'image') && typeof v === 'string' && v) want.add(v); else if (v && typeof v === 'object') walk(v, depth + 1); } })(view, 0);
-    const todo = [...want].filter(p => !st.images.has(p) || (st.images.get(p) == null && st.imgIndex)).slice(0, 60);
+    const todo = [...want].filter(p => !st.images.has(p) || (st.images.get(p) == null && (st.imgIndex || st.imgDirOk))).slice(0, 60);
     return Promise.all(todo.map(async p => { const im = await fetchImage(p); if (im || !st.images.has(p)) st.images.set(p, im); }));
   }
 
@@ -1078,7 +1111,7 @@
     const f = st.summary && st.summary.focus;
     const meta = st.files && st.files.meta;
     const path = f ? (f.logo || (f.role === 'player' && meta && meta.teamLogo) || '') : '';
-    if (path === st.logoKey && (st.logo || !st.imgIndex)) return Promise.resolve();
+    if (path === st.logoKey && (st.logo || !(st.imgIndex || st.imgDirOk))) return Promise.resolve();
     st.logoKey = path; st.logo = null;
     if (!path) return Promise.resolve();
     return fetchImage(path).then(im => { st.logo = im; });

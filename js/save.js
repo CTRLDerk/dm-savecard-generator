@@ -92,8 +92,8 @@
     // Calendar: races only, testing events left out.
     const races = (season.circuits || []).filter(c => c.eventType !== 'testing')
       .slice().sort((a, b) => a.week - b.week)
-      .map((c, i) => ({ round: i + 1, name: c.name, cc: countryCode(c.flag, c.flagPath), week: c.week,
-        laps: num(c.laps), sprint: !!c.hasSprintWeekend, done: false }));
+      .map((c, i) => ({ round: i + 1, name: c.nickname || c.name, cc: countryCode(c.flag, c.flagPath), week: c.week,
+        laps: num(c.laps), sprint: !!c.hasSprintWeekend, done: false, km: num(c.length), type: c.category || null, track: trackOf(c) }));
     const results = (season.raceResults || []).filter(r => r.season == null || r.season === year)
       .slice().sort((a, b) => a.week - b.week);
     const rounds = results.map((r, i) => {
@@ -231,6 +231,7 @@
         gained: focus ? paid(focus.id) : null };
     }
     const finishedSeason = !!season.isSeasonFinished;
+    const story = focus && !preseason ? storyOf(focus, teamStandings, rounds, results, races.length) : null;
     const next = finishedSeason ? null : (races.find(c => !c.done && (!lastRound || c.week > lastRound.week)) || races.find(c => !c.done) || null);
 
     return {
@@ -239,11 +240,56 @@
       saveName: meta.customName || meta.displayName || null,
       category: gd.categoryName || null,
       season: year, week, finished: finishedSeason, preseason,
-      rounds: { done: rounds.length, total: races.length || rounds.length, list: races.map(c => ({ round: c.round, name: c.name, cc: c.cc, week: c.week, done: c.done })) },
-      focus, partners, last, next: next ? { round: next.round, name: next.name, cc: next.cc, week: next.week, laps: next.laps, sprint: next.sprint } : null,
+      rounds: { done: rounds.length, total: races.length || rounds.length, list: races.map(c => ({ round: c.round, name: c.name, cc: c.cc, week: c.week, done: c.done, km: c.km, laps: c.laps, type: c.type, track: c.track })) },
+      story,
+      focus, partners, last, next: next ? { round: next.round, name: next.name, cc: next.cc, week: next.week, laps: next.laps, sprint: next.sprint, km: next.km, type: next.type, track: next.track } : null,
       teams: teamStandings.map(r => ({ pos: r.pos, tied: r.tied, id: r.id, name: r.name, short: r.short, number: r.number, color: r.color, points: r.points, wins: r.wins })),
       drivers: driverStandings.map(d => ({ pos: d.pos, tied: d.tied, id: d.id, name: d.name, cc: d.cc, teamId: d.teamId, team: d.team, color: d.color, points: d.points, wins: d.wins }))
     };
+  }
+
+  // The track drawing of a circuit (the game's layout editor: control points on a 1000 × 1000 canvas), kept small.
+  function trackOf(c) {
+    const tl = c && c.trackLayout, pts = tl && (Array.isArray(tl) ? tl : tl.points);
+    if (!Array.isArray(pts) || pts.length < 4) return null;
+    const xy = pts.map(p => (Array.isArray(p) ? [num(p[0]), num(p[1])] : [num(p && p.x), num(p && p.y)])).filter(p => p[0] != null && p[1] != null).map(p => [Math.round(p[0]), Math.round(p[1])]);
+    if (xy.length < 4) return null;
+    const zones = ((!Array.isArray(tl) && tl.speedZones) || []).map(z => [num(z.frac), num(z.length) || 0.03, num(z.severity) || 1]).filter(z => z[0] != null);
+    return { p: xy, z: zones, dir: c.circuitDirection === 'ccw' ? 'ccw' : 'cw', start: num(c.startGridIndex) || 0 };
+  }
+
+  // What the numbers mean for the story: how big a gap is in races, how we do against our own average,
+  // one rival with a head-to-head score, the margin to the board's target.
+  function storyOf(f, table, rounds, results, total) {
+    const paid = (r, id) => (num((r.teamPoints || {})[id]) || 0) + (num((r.sprintTeamPoints || {})[id]) || 0);
+    const best = (rd, id) => { const c = rd.cars.filter(x => x.teamId === id && x.finished).sort((a, b) => a.position - b.position)[0]; return c ? c.position : null; };
+    let raceMax = 0;
+    for (const r of results) for (const t of table) raceMax = Math.max(raceMax, paid(r, t.id));
+    const history = rounds.map((rd, i) => { const mine = rd.cars.filter(x => x.teamId === f.id).sort((a, b) => (a.finished === b.finished ? a.position - b.position : a.finished ? -1 : 1))[0];
+      return { round: rd.round, pos: mine && mine.finished ? mine.position : null, start: mine ? mine.start : null, raced: !!mine, gained: results[i] ? +paid(results[i], f.id).toFixed(2) : null }; }).filter(h => h.raced);
+    const fin = history.filter(h => h.pos != null);
+    const avg = fin.length ? +(fin.reduce((a, h) => a + h.pos, 0) / fin.length).toFixed(1) : null;
+    let finishRun = 0; for (let i = history.length - 1; i >= 0 && history[i].pos != null; i--) finishRun++;
+    const last = history[history.length - 1] || null;
+    let bestIn = 0;   // the last result is the best of the last N races (N counts the last race itself)
+    if (last && last.pos != null) { bestIn = 1; for (let i = history.length - 2; i >= 0 && (history[i].pos == null || history[i].pos > last.pos); i--) bestIn++; }
+    const idx = table.findIndex(t => t.id === f.id), up = idx > 0 ? table[idx - 1] : null, down = idx >= 0 && idx < table.length - 1 ? table[idx + 1] : null;
+    const gUp = up ? up.points - f.points : Infinity, gDown = down ? f.points - down.points : Infinity;
+    const rt = gUp <= gDown * 1.5 ? up : down;
+    let rival = null;
+    if (rt) { let us = 0, them = 0;
+      for (const rd of rounds) { const a = best(rd, f.id), b = best(rd, rt.id); if (a == null && b == null) continue; if (b == null || (a != null && a < b)) us++; else if (a == null || b < a) them++; }
+      const lr = rounds[rounds.length - 1];
+      rival = { id: rt.id, short: rt.short, color: rt.color, ahead: rt === up, gap: +Math.abs(rt.points - f.points).toFixed(2), us, them, pos: rt.pos, lastUs: lr ? best(lr, f.id) : null, lastThem: lr ? best(lr, rt.id) : null }; }
+    let target = null;
+    if (f.expected && f.pos != null) {
+      if (f.pos <= f.expected) { const out = table[f.expected] || null; target = { pos: f.expected, ok: true, margin: out ? +(f.points - out.points).toFixed(2) : null, team: out ? out.short : null, teamPos: out ? out.pos : null }; }
+      else { const at = table[f.expected - 1] || null; target = { pos: f.expected, ok: false, margin: at ? +(at.points - f.points).toFixed(2) : null, team: at ? at.short : null, teamPos: f.expected }; }
+    }
+    const left = Math.max(0, total - rounds.length);
+    return { raceMax: +raceMax.toFixed(2), left, races: history.length, history: history.slice(-12), avg, finishRun, bestIn, seasonBest: fin.length ? Math.min(...fin.map(h => h.pos)) : null,
+      last: last ? { pos: last.pos, start: last.start, gained: last.gained } : null, rival, target,
+      titleOpen: f.leaderGap != null && raceMax > 0 ? f.leaderGap <= left * raceMax / 2 : null };   // the leader scores too: half of what is left is a fair limit
   }
 
   // "Mercedes-AMG Team Verstappen Racing (#3)" → "Verstappen Racing #3" is too clever; keep the name, drop the brackets.

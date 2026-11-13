@@ -85,8 +85,8 @@
       career: f.career ? { titles: f.career.titles, past: f.career.past } : null },
       field: s.teams.map(t => ({ id: t.id, short: t.short, color: t.color, pos: t.pos, points: t.points, wins: t.wins })),
       leaderDriver: s.drivers[0] ? { id: s.drivers[0].id, name: s.drivers[0].name, teamId: s.drivers[0].teamId, points: s.drivers[0].points } : null,
-      races,
-      next: s.next ? { round: s.next.round, name: s.next.name, cc: s.next.cc, week: s.next.week } : null,
+      races, story: s.story || null,
+      next: s.next ? { round: s.next.round, name: s.next.name, cc: s.next.cc, week: s.next.week, laps: s.next.laps || null, km: s.next.km || null, type: s.next.type || null, track: s.next.track || null } : null,
       champ: champ ? { left: champ.left, maxTeam: champ.maxTeam, maxDriver: champ.maxDriver, contenders: champ.contenders,
         alive: myChamp ? myChamp.alive : null, clinched: !!(myChamp && myChamp.pos === 1 && !champ.preseason && champ.teams[1] && myChamp.points - champ.teams[1].points > champ.maxTeam) } : null,
       rnd: rnd ? { done: rnd.done, successes: rnd.successes, upgrades, inProgress: rnd.inProgress.map(d => ({ key: d.key, name: d.name, ready: d.ready })),
@@ -261,7 +261,8 @@
     const stale = j => !j || j.v !== VERSION || j.key !== identity(snap) || (j.last && (snap.season < j.last.season || (snap.season === j.last.season && snap.round < j.last.round)));
     if (stale(journal)) { reset = !!journal; journal = create(snap, slot); }
     const L = journal.last;
-    if (L && L.season === snap.season && L.week === snap.week && L.round === snap.round && L.at === snap.at) return { journal, added: [], reset };
+    // Same save: no new events, but keep the snapshot current (newer tool versions add fields such as the track drawing).
+    if (L && L.season === snap.season && L.week === snap.week && L.round === snap.round && L.at === snap.at) { journal.last = snap; return { journal, added: [], reset }; }
     const known = new Set(journal.events.map(e => e.id));
     const added = diff(L, snap).filter(e => !known.has(e.id) && known.add(e.id));
     for (const e of added) e.n = ++journal.seq;

@@ -279,8 +279,15 @@
         });
       }
       ctx.strokeStyle = C.border; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]); ctx.strokeRect(X + 30.5, Y + 140.5, PW - 61, PH - 171); ctx.setLineDash([]);
+      // Without the export: the circuit itself, so the card still shows where it happened.
+      const rd = s.last && s.rounds.list.find(r => r.round === s.last.round), tr = rd && rd.track;
+      if (tr) { Card.helpers.drawTrack(ctx, tr, X + 60, Y + 160, PW - 120, PH - 250, { width: 6, line: C.ink });
+        ctx.font = F(600, 13); ctx.fillStyle = C.muted; ctx.textAlign = 'center';
+        ctx.fillText([rd.name, rd.km ? n1(+rd.km.toFixed(1), lang) + ' km' : null, rd.laps ? rd.laps + (lang === 'nl' ? ' ronden' : ' laps') : null, T.trackType(rd.type, lang) || null].filter(Boolean).join('  ·  '), X + PW / 2, Y + PH - 66);
+        ctx.font = F(500, 12); ctx.fillText(t.hint, X + PW / 2, Y + PH - 44); ctx.textAlign = 'left';
+      } else {
       ctx.font = F(800, 20, true); ctx.fillStyle = C.muted; ctx.textAlign = 'center';
-      ctx.fillText(t.hint, X + PW / 2, Y + 140 + (PH - 170) / 2 + 6); ctx.textAlign = 'left';
+      ctx.fillText(t.hint, X + PW / 2, Y + 140 + (PH - 170) / 2 + 6); ctx.textAlign = 'left'; }
       footer(ctx, s, t, lang, v.team ? [v.team] : []);
       return canvas;
     }
@@ -388,7 +395,7 @@
     if (v.winner) {
       const hasFace = !!img(v.winner.face), fx = hasFace ? x0 + 74 : x0;
       if (hasFace) picture(ctx, img(v.winner.face), x0, P.Y + 42, 62, 70, '', null);
-      if (img(v.winner.logo)) picture(ctx, img(v.winner.logo), P.X + P.PW - 100, P.Y + 30, 70, 70, '', null);
+      if (img(v.winner.logo)) logoPic(ctx, img(v.winner.logo), P.X + P.PW - 100, P.Y + 30, 70, 70, '', null);
       ctx.font = F(900, 32, true); ctx.fillStyle = C.ink; ctx.fillText(fit(ctx, v.winner.driver.toUpperCase(), P.PW - 190 - (fx - x0)), fx, P.Y + 76);
       ctx.font = F(500, 15); ctx.fillStyle = C.muted;
       ctx.fillText(fit(ctx, v.winner.team + ' · from ' + ord(v.winner.start) + (v.winner.stops != null ? ' · ' + v.winner.stops + ' stops' : ''), P.PW - 190 - (fx - x0)), fx, P.Y + 100);
@@ -406,7 +413,7 @@
       if (r.mine) { ctx.fillStyle = C.sel; ctx.fillRect(x0 - 8, ry, P.PW - 52, 28); ctx.fillStyle = C.gold; ctx.fillRect(x0 - 8, ry, 4, 28); }
       else if (i) { ctx.fillStyle = C.hair; ctx.fillRect(x0, ry, P.PW - 68, 1); }
       ctx.font = F(800, 15, true); ctx.fillStyle = r.finished ? C.ink : C.red; ctx.fillText(r.finished ? String(r.pos) : (r.status || 'DNF').slice(0, 3), x0, base);
-      if (img(r.logo)) picture(ctx, img(r.logo), xD - 30, ry + 3, 22, 22, '', null); else { ctx.fillStyle = r.color || C.faint; ctx.fillRect(xD - 12, ry + 6, 4, 17); }
+      if (img(r.logo)) logoPic(ctx, img(r.logo), xD - 30, ry + 3, 22, 22, '', null); else { ctx.fillStyle = r.color || C.faint; ctx.fillRect(xD - 12, ry + 6, 4, 17); }
       ctx.font = F(r.mine ? 700 : 600, 15); ctx.fillStyle = C.ink; ctx.fillText(fit(ctx, r.driver, xT - xD - 14), xD, base);
       ctx.font = F(500, 13); ctx.fillStyle = C.muted; ctx.fillText(fit(ctx, r.team, xS - xT - 70), xT, base);
       ctx.textAlign = 'right'; ctx.font = F(500, 13); ctx.fillStyle = C.muted;
@@ -468,6 +475,10 @@
     }
     ctx.strokeStyle = dark ? C.bgLine : C.border; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
   }
+  // Team logos: centred, no box (faces keep the box and stand on its bottom edge).
+  function logoPic(ctx, img, x, y, w, h, fallback, color) {
+    if (img && img.naturalWidth) Card.helpers.drawLogo(ctx, img, x, y, w, h); else picture(ctx, img, x, y, w, h, fallback, color);
+  }
   const initialsOf = n => String(n || '?').replace(/\(.*?\)/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
   // ------------------------------------------------------------ season preview
@@ -486,7 +497,7 @@
     header(ctx, s.category || 'Delta Manager', t.preview + ' ' + v.season, v.rounds + ' ' + t.rounds.toLowerCase() + (v.first ? ' · ' + v.first.name : ''));
     const P = plate(ctx, v.color);
     const x0 = P.X + 38;
-    picture(ctx, img(v.logo), x0, P.Y + 26, 76, 76, initialsOf(v.team), v.color);
+    logoPic(ctx, img(v.logo), x0, P.Y + 26, 76, 76, initialsOf(v.team), v.color);
     ctx.font = F(900, 26, true); ctx.fillStyle = C.ink;
     Card.helpers.wrap(ctx, String(v.name || v.team || '').toUpperCase(), P.PW - 180, 2).forEach((ln, i) => ctx.fillText(ln, x0 + 98, P.Y + 52 + i * 30));
     const facts = [];
@@ -536,13 +547,16 @@
     header(ctx, [s.category, v.team].filter(Boolean).join(' · '), (v.finished ? t.review : t.soFar) + ' ' + v.season, v.finished ? '' : fill(t.after, { R: v.round, N: v.total }));
     const P = plate(ctx, v.color);
     const x0 = P.X + 38;
-    picture(ctx, img(v.logo), x0, P.Y + 26, 76, 76, initialsOf(v.team), v.color);
+    logoPic(ctx, img(v.logo), x0, P.Y + 26, 76, 76, initialsOf(v.team), v.color);
     label(ctx, v.finished ? t.final : t.championship, x0 + 100, P.Y + 46, C.faint);
     ctx.font = F(900, 64, true); ctx.fillStyle = C.ink; const big = v.pos ? 'P' + v.pos + (v.tied ? '=' : '') : '–'; ctx.fillText(big, x0 + 96, P.Y + 104);
     const bw = ctx.measureText(big).width;
     ctx.font = F(800, 26, true); ctx.fillText(n1(v.points, lang) + ' ' + t.pts.toUpperCase(), x0 + 120 + bw, P.Y + 80);
     ctx.font = F(500, 14); ctx.fillStyle = C.muted;
-    const sub = v.pos === 1 && v.finished ? t.champs + '!' : v.gapToTop ? '−' + n1(v.gapToTop, lang) + ' ' + (lang === 'nl' ? 'op P1' : 'to P1') : '';
+    // The gap that matters: to P1 while the title is still possible, otherwise to the team right ahead.
+    const SLn = T.story(s, lang), f0 = s.focus, toP1 = v.gapToTop ? '−' + n1(v.gapToTop, lang) + ' ' + (lang === 'nl' ? 'op P1' : 'to P1') : '';
+    const sub = v.pos === 1 && v.finished ? t.champs + '!' : !v.finished && s.story && s.story.titleOpen === false && f0 && f0.ahead && f0.gapAhead != null
+      ? '−' + n1(f0.gapAhead, lang) + ' ' + (lang === 'nl' ? 'op ' : 'to ') + f0.ahead : toP1;
     if (sub) ctx.fillText(sub, x0 + 120 + bw, P.Y + 102);
     if (v.verdict) {
       const txt = (t.target + ' P' + v.target + ' · ' + t[v.verdict]).toUpperCase(); ctx.font = F(700, 12);
@@ -574,6 +588,18 @@
         ctx.font = F(600, 10); ctx.fillStyle = C.faint; ctx.fillText(sameCc ? (r.track || '').replace(/[^A-Za-z ]/g, '').trim().slice(0, 3).toUpperCase() || String(r.round) : r.cc || String(r.round), fx + w / 2, fy + 44); ctx.textAlign = 'left';
       });
     } else if (v.limited) { ctx.font = F(500, 14); ctx.fillStyle = C.muted; ctx.fillText(t.limited, x0, y + 10); }
+    // the story in the numbers: headline, rival, target and what the next race can change
+    if (!v.finished) {
+      const rowsN = v.form.length > 18 ? 2 : 1, ys = Math.max(y + rowsN * 70 + 6, P.Y + 322);
+      const ls = [SLn.rival ? [SLn.rival, SLn.score].filter(Boolean).join(' ') : '', SLn.target, SLn.need].filter(Boolean);
+      if ((SLn.headline || ls.length) && ys + 40 < P.Y + P.PH) {
+        ctx.fillStyle = C.ink; ctx.fillRect(x0, ys, P.PW - 66, 2);
+        let ly = ys + 30;
+        if (SLn.headline) { ctx.font = F(900, 24, true); ctx.fillStyle = C.ink; ctx.fillText(fit(ctx, SLn.headline.toUpperCase(), P.PW - 76), x0, ly + 2); ly += 30; }
+        ctx.font = F(500, 14); ctx.fillStyle = C.muted;
+        for (const ln of ls) for (const part of Card.helpers.wrap(ctx, ln, P.PW - 76, 2)) { if (ly > P.Y + P.PH - 12) break; ctx.fillText(part, x0, ly); ly += 20; }
+      }
+    }
     // right column: champion + our drivers
     let ry = 150;
     label(ctx, v.finished ? fill(t.champion, { Y: v.season }) : t.leader, RX, ry, C.bgMuted); ry += 10;

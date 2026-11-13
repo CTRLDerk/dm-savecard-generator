@@ -3,7 +3,7 @@
    and next time (open questions, the car in words, contracts). Uses the journal snapshot only. */
 (function (root) {
   'use strict';
-  const Card = root.DMCard, E = root.DMEpisode;
+  const Card = root.DMCard, E = root.DMEpisode, TX = root.DMText;
   const { C, F, fit, wrap, spaced, label, stripe, logoBox, readable } = Card.helpers;
   const W = Card.W, H = Card.H;
   const L = {
@@ -286,8 +286,12 @@
     label(ctx, [ep.series ? ep.series.name : null, (snap.category || '') + ' ' + snap.season, ep.kind === 'prologue' ? t.prologue : p.chapter + ' ' + ep.no].filter(Boolean).join('  ·  '), 76 + ctx.measureText(k).width + 18, 59, C.bgMuted);
     ctx.font = F(800, 64, true); ctx.fillStyle = C.bgText;
     const nx = snap.next;
-    ctx.fillText(fit(ctx, (nx ? nx.name : snap.finished ? (lang === 'nl' ? 'Nieuw seizoen' : 'New season') : '–').toUpperCase(), 1100), 46, 132);
-    if (nx) { ctx.font = F(600, 17); ctx.fillStyle = C.bgMuted; ctx.fillText((lang === 'nl' ? 'Ronde ' : 'Round ') + nx.round + ' / ' + snap.total + '  ·  ' + t.week + ' ' + nx.week, 48, 162); }
+    const hasTrack = !!(nx && nx.track), tw = hasTrack ? 800 : 1100, nm = (nx ? nx.name : snap.finished ? (lang === 'nl' ? 'Nieuw seizoen' : 'New season') : '–').toUpperCase();
+    let fs = 64; while (fs > 40 && ctx.measureText(nm).width > tw) { fs -= 4; ctx.font = F(800, fs, true); }
+    ctx.fillText(fit(ctx, nm, tw), 46, 132);
+    if (nx) { ctx.font = F(600, 17); ctx.fillStyle = C.bgMuted; ctx.fillText([(lang === 'nl' ? 'Ronde ' : 'Round ') + nx.round + ' / ' + snap.total, t.week + ' ' + nx.week,
+      nx.km ? String(+nx.km.toFixed(1)).replace('.', lang === 'nl' ? ',' : '.') + ' km' : null, nx.laps ? nx.laps + (lang === 'nl' ? ' ronden' : ' laps') : null, TX.trackType(nx.type, lang) || null].filter(Boolean).join('  ·  '), 48, 162); }
+    if (hasTrack) Card.helpers.drawTrack(ctx, nx.track, 880, 44, W - 48 - 880, 130, { width: 4 });
 
     // Open questions
     const qx = 48, qw = 620;
@@ -296,6 +300,11 @@
     const seen = new Set(), norm = x => String(x || '').toLowerCase().replace(/\s+/g, ' ').trim();
     const qs = (ep.series && ep.series.goalLine ? [{ key: 'goal', text: ep.series.goalLine, tone: 'gold', data: {} }] : []).concat(p.threads)
       .filter(q => { const k = norm(q.text); if (!k || seen.has(k) || (q.key === 'goal' && seen.has('#goal'))) return false; seen.add(k); if (q.key === 'goal') seen.add('#goal'); return true; });
+    // Room left: what is at stake, from the standings (rival, target, what the next race can change).
+    const SL = TX.story(snap, lang), has = k => qs.some(q => q.key === k);
+    if (qs.length < 3 && SL.need && !has('chase') && !has('pressure') && !has('defend_lead')) qs.push({ key: 'need', text: SL.need, tone: 'gold', data: {} });
+    if (qs.length < 3 && SL.rival) qs.push({ key: 'rival', text: [SL.rival, SL.score].filter(Boolean).join(' '), tone: 'warn', data: {} });
+    if (qs.length < 3 && SL.target && !has('goal')) qs.push({ key: 'target', text: SL.target, tone: 'good', data: {} });
     let qy = 220;
     for (const q of qs.slice(0, 3)) {
       panel(ctx, qx, qy, qw, 104);

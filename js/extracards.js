@@ -3,7 +3,7 @@
    season wrapped (portrait slides, 540 × 675 logical → 1080 × 1350 PNG). */
 (function (root) {
   'use strict';
-  const Card = root.DMCard, X = root.DMExtra;
+  const Card = root.DMCard, X = root.DMExtra, T = root.DMText;
   const { C, F, fit, wrap, label } = Card.helpers;
   const W = Card.W, H = Card.H;
   const WCOL = [C.redText, C.orange, C.bgText, C.green, C.gold];
@@ -77,9 +77,17 @@
     const lang = lg(opts), t = L[lang], ctx = frame(canvas, opts.scale || 2, v && v.color);
     kicker(ctx, t.raceweek, [(v.category || '') + ' ' + v.season, v.next ? t.round + ' ' + v.next.round + ' / ' + v.next.total : ''].filter(Boolean).join('  ·  '), C.red);
     if (!v.next) { ctx.font = F(800, 64, true); ctx.fillStyle = C.bgText; ctx.fillText(lang === 'nl' ? 'SEIZOEN VOORBIJ' : 'SEASON OVER', 46, 150); footer(ctx, v.team); return canvas; }
-    ctx.font = F(800, 92, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, v.next.name.toUpperCase(), 1100), 44, 156);
+    // Circuit name: as large as fits next to the track drawing, on two lines when it is long.
+    const hasTrack = !!v.track, tw = hasTrack ? 700 : 1100, nm = v.next.name.toUpperCase();
+    let fs = 92; ctx.font = F(800, fs, true);
+    while (fs > 56 && ctx.measureText(nm).width > tw) { fs -= 4; ctx.font = F(800, fs, true); }
+    ctx.fillStyle = C.bgText;
+    if (ctx.measureText(nm).width <= tw) ctx.fillText(nm, 44, 156);
+    else { fs = 54; ctx.font = F(800, fs, true); const ls = wrap(ctx, nm, tw, 2); ls.forEach((ln, i) => ctx.fillText(ln, 44, 112 + i * 52)); }
     ctx.font = F(600, 18); ctx.fillStyle = C.bgMuted;
-    ctx.fillText([v.next.cc, t.week + ' ' + v.next.week, v.next.laps ? v.next.laps + ' ' + t.laps : null, v.next.sprint ? t.sprint : null].filter(Boolean).join('  ·  '), 48, 190);
+    const lines = lang === 'nl' ? v.linesNl : v.lines, km = v.next.length;
+    ctx.fillText(fit(ctx, [v.next.cc, t.week + ' ' + v.next.week, km ? n1(+km.toFixed(2), lang) + ' km' : null, v.next.laps ? v.next.laps + ' ' + t.laps : null, T.trackType(v.type, lang) || null, v.next.sprint ? t.sprint : null].filter(Boolean).join('  ·  '), tw + 20), 48, 190);
+    if (hasTrack) Card.helpers.drawTrack(ctx, v.track, 800, 58, W - 48 - 800, 150, { width: 5 });
     // Standing
     panel(ctx, 48, 222, 330, 190);
     label2(ctx, t.standing, 70, 252);
@@ -108,10 +116,13 @@
     const row = (lab, a, y) => { if (!a) return; ctx.font = F(500, 15); ctx.fillStyle = C.bgMuted; ctx.fillText(lab, cx + 20, y); ctx.font = F(600, 18); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, lang === 'nl' ? a.nl : a.label, cw - 170), cx + 20, y + 26);
       ctx.font = F(700, 22); ctx.fillStyle = WCOL[a.w]; ctx.textAlign = 'right'; ctx.fillText(t.words[a.w], cx + cw - 20, y + 26); ctx.textAlign = 'left'; };
     row(t.strong, v.strong, 290); if (v.weak && v.strong && v.weak.key !== v.strong.key && v.weak.w !== v.strong.w) row(t.weak, v.weak, 356);
+    // What is at stake this weekend, in one line
+    const stake = lines && (lines.need || lines.target || lines.rival);
+    if (stake) { ctx.font = F(600, 17); ctx.fillStyle = C.gold; ctx.fillText(fit(ctx, stake, W - 96), 48, 438); }
     // Poll
-    label2(ctx, t.ask, 48, 458);
-    t.opts.forEach((o, i) => { const bx = 48 + i * 372, cols = [C.gold, C.green, C.redText]; panel(ctx, bx, 472, 356, 84); ctx.fillStyle = cols[i]; ctx.fillRect(bx, 472, 6, 84);
-      ctx.font = F(800, 36, true); ctx.fillStyle = C.bgText; ctx.fillText(String.fromCharCode(65 + i), bx + 26, 528); ctx.font = F(700, 26); ctx.fillText(o.toUpperCase(), bx + 70, 526); });
+    label2(ctx, t.ask, 48, 466);
+    ((lines && lines.poll) || t.opts).forEach((o, i) => { const bx = 48 + i * 372, cols = [C.gold, C.green, C.redText]; panel(ctx, bx, 478, 356, 84); ctx.fillStyle = cols[i]; ctx.fillRect(bx, 478, 6, 84);
+      ctx.font = F(800, 36, true); ctx.fillStyle = C.bgText; ctx.fillText(String.fromCharCode(65 + i), bx + 26, 534); ctx.font = F(700, 26); ctx.fillText(o.toUpperCase(), bx + 70, 532); });
     footer(ctx, [v.team, v.expected ? t.target + ' P' + v.expected : null].filter(Boolean).join('  ·  '));
     return canvas;
   }
@@ -142,7 +153,18 @@
       if (val && typeof val === 'object') { ctx.font = F(800, 30, true); ctx.fillStyle = WCOL[val.w]; ctx.fillText(t.words[val.w], fx, fy + 34); }
       else { ctx.font = F(800, 30, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, String(val), 350), fx, fy + 34); }
     });
-    if (v.traits.length) { let tx = x; const ty = y + 3 * 64 + 4; for (const tr of v.traits.slice(0, 4)) { ctx.font = F(600, 14); const w = ctx.measureText(tr).width + 20; if (tx + w > W - 48) break; ctx.strokeStyle = C.bgLine; ctx.lineWidth = 1.5; ctx.strokeRect(tx, ty, w, 28); ctx.fillStyle = C.bgText; ctx.fillText(tr, tx + 10, ty + 19); tx += w + 8; } }
+    if (v.traits.length) { let tx = x; const ty = y + 3 * 64 + 4; for (const tr0 of v.traits.slice(0, 4)) { const tr = T.trait(tr0, lang); ctx.font = F(600, 14); const w = ctx.measureText(tr).width + 20; if (tx + w > W - 48) break; ctx.strokeStyle = C.bgLine; ctx.lineWidth = 1.5; ctx.strokeRect(tx, ty, w, 28); ctx.fillStyle = C.bgText; ctx.fillText(tr, tx + 10, ty + 19); tx += w + 8; } }
+    // The case for and against (contract decisions only)
+    const pro = (v.pro && v.pro[lang]) || [], con = (v.con && v.con[lang]) || [];
+    if (pro.length || con.length) {
+      const cy = y + 3 * 64 + (v.traits.length ? 56 : 12), colw = (W - 48 - x - 24) / 2;
+      [[lang === 'nl' ? 'Voor verlengen' : 'The case for', pro, C.green], [lang === 'nl' ? 'Tegen' : 'The case against', con, C.redText]].forEach(([h, list, col], i) => {
+        const bx = x + i * (colw + 24); ctx.fillStyle = col; ctx.fillRect(bx, cy, colw, 2); label2(ctx, h, bx, cy + 22);
+        ctx.font = F(500, 15); ctx.fillStyle = C.bgText;
+        if (!list.length) { ctx.fillStyle = C.bgMuted; ctx.fillText('–', bx, cy + 46); }
+        list.slice(0, 3).forEach((ln, k) => ctx.fillText(fit(ctx, ln, colw), bx, cy + 46 + k * 22));
+      });
+    }
     // Stamp
     if (v.type === 'signing' || v.type === 'extension') {
       ctx.save(); ctx.translate(1040, 120); ctx.rotate(-0.16); ctx.strokeStyle = C.green; ctx.lineWidth = 4; ctx.font = F(800, 34, true); const st = t.done.toUpperCase(); const sw = ctx.measureText(st).width + 30;

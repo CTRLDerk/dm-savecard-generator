@@ -1,9 +1,9 @@
 /* DM Save Card — social post: a short post in social-media style (template or AI),
    the prompt for the AI, and a Discord-style preview of the finished post. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.DMPost = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./text.js'));
+  else root.DMPost = factory(root.DMText);
+})(typeof self !== 'undefined' ? self : this, function (TXT) {
   'use strict';
 
   const md = x => String(x == null ? '' : x).replace(/([\\*_~`|>])/g, '\\$1').replace(/@/g, '@\u200b');
@@ -91,6 +91,8 @@
       else if (best && best.finished) out.push(one(best.drivers, fill(pick(w.fromPos[tone]), { D: md(crew(best.drivers)), P: best.position, S: best.start, T: md(T) })) + (F.winner ? ' ' + fill(pick(w.won), { W: md(F.winner.team) }) : ''));
       else if (best) out.push(fill(pick(w.outLine[tone]), { T: md(T), L: best.outLap ? (lang === 'nl' ? ' in ronde ' : ' on lap ') + best.outLap : '' }) + (F.winner ? ' ' + fill(pick(w.won), { W: md(F.winner.team) }) : ''));
       else if (F.winner) out.push(fill(pick(w.won), { W: md(F.winner.team) }) + ' ' + M);
+      // An ordinary result gets its meaning from our own season: the run we are on, our average, the rival.
+      if (best && best.finished && best.position > 3 && !(F.winner && F.winner.isFocus)) { const rel = TXT.relative(s.story, lang); if (rel) out.push(md(rel.charAt(0).toUpperCase() + rel.slice(1)) + '.'); }
       out.push('');
       if (F.export) {
         const E = F.export, bits = [];
@@ -122,7 +124,9 @@
     }
     if (f.expected && f.role === 'player') {
       const ts = s.preseason || f.pos == null ? 'on' : f.pos < f.expected ? 'ahead' : f.pos === f.expected ? 'on' : 'behind';
-      if (!s.preseason) out.push(fill(w.target[ts], { P: f.expected }));
+      const SLp = TXT.story(s, lang);
+      if (!s.preseason) out.push(SLp.target ? '🎯 ' + md(SLp.target) : fill(w.target[ts], { P: f.expected }));
+      if (!s.preseason && SLp.score && s.story && s.story.rival) out.push('🆚 ' + md(s.story.rival.short) + ': ' + md(SLp.score));
     }
     if (s.next) out.push(fill(s.preseason ? w.firstRace : w.next, { C: md(s.next.name), R: s.next.round }));
     else if (s.finished) out.push(w.last);
@@ -220,7 +224,7 @@
       if (kind === 'seasonStart') {
         const H = { team: nl ? 'KLAAR VOOR {Y}! 🚦' : 'READY FOR {Y}! 🚦', hype: nl ? 'SEIZOEN {Y} KAN BEGINNEN! 🔥🚦' : 'SEASON {Y} IS HERE! 🔥🚦', press: nl ? '{T} klaar voor seizoen {Y}' : '{T} ready for the {Y} season' };
         out.push('**' + md(fill(H[tone], { Y: v.season, T: v.team })) + '**');
-        if (v.started) out.push(nl ? '(Seizoen al begonnen: ronde ' + v.round + ' gereden.)' : '(Season already under way: ' + v.round + ' round(s) run.)');
+        if (v.started) out.push(nl ? '(Seizoen al begonnen: ronde ' + v.round + ' gereden.)' : '(Season already under way: ' + v.round + (v.round === 1 ? ' round' : ' rounds') + ' run.)');
         const lu = v.lineup.filter(d => d.role === 'driver');
         if (lu.length) out.push((tone === 'press' ? (nl ? 'Coureurs: ' : 'Drivers: ') : (nl ? '👥 Onze line-up: ' : '👥 Our line-up: ')) + lu.map(d => md(d.name) + (d.age ? ' (' + d.age + ')' : '')).join(', '));
         const rs = v.lineup.filter(d => d.role === 'reserve'); if (rs.length) out.push((nl ? '🔄 Reserve: ' : '🔄 Reserve: ') + rs.map(d => md(d.name)).join(', '));
@@ -271,10 +275,12 @@
       out.push('');
       if (v.winner && !(o && o.pos === 1)) out.push('🏆 ' + md(v.winner.driver) + ' (' + md(v.winner.team) + ') wins from ' + ord(v.winner.start));
       if (v.stages.length) out.push('🏁 Stage winners: ' + v.stages.map(x => 'S' + x.stage + ' ' + md(x.driver)).join(' · '));
-      out.push('🔝 Top 5: ' + v.top.slice(0, 5).map(r => r.pos + '. ' + md(r.driver.split(' ').slice(-1)[0])).join(' · '));
+      { // one entry per car: a crew that shares a car (endurance) is one finisher
+        const cars = []; for (const r of v.top) { const c = cars.find(x => x.pos === r.pos && x.team === r.team); const nm = r.driver.split(' ').slice(-1)[0]; if (c) c.names.push(nm); else cars.push({ pos: r.pos, team: r.team, names: [nm] }); }
+        out.push('🔝 Top 5: ' + cars.slice(0, 5).map(c => c.pos + '. ' + md(c.names.slice(0, 3).join('/'))).join(' · ')); }
       for (const d of (v.ourStandings || []).slice(0, 2)) out.push('📊 Points: ' + md(d.name) + ' ' + ord(d.pos) + (d.back ? ', ' + num(d.back) + ' back' : ', points leader'));
       if (v.next) out.push('⏭️ Next up: ' + md(v.next.track) + ' (Round ' + v.next.round + ')');
-      if (tone !== 'press') out.push('', ['#NASCAR', sTag, '#DeltaManager'].filter(Boolean).join(' '));
+      if (tone !== 'press') out.push('', [/nascar|truck series|xfinity|cup series/i.test(v.series || '') ? '#NASCAR' : (v.series ? tag(v.series) : ''), sTag, '#DeltaManager'].filter(Boolean).join(' '));
       return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
     }
     if (kind === 'strategy') {
