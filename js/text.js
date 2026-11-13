@@ -109,7 +109,7 @@
   // Small grammar repairs on a finished text: "1 races", "Rounds 3–3", "X to X".
   function tidy(text) {
     return String(text == null ? '' : text)
-      .replace(/\b1 races\b/g, '1 race').replace(/\b1 stops\b/g, '1 stop').replace(/stopped 1 times/g, 'stopped once').replace(/\b1 times\b/g, 'once').replace(/stopte 1 keer/g, 'stopte één keer').replace(/\b1 wins\b/g, '1 win').replace(/\b1 podiums\b/g, '1 podium').replace(/\b1 zeges\b/g, '1 zege')
+      .replace(/\b1 races\b/g, '1 race').replace(/\b1 stops\b/g, '1 stop').replace(/([−+-])1 places\b/g, '$11 place').replace(/\b1 places\b/g, '1 place').replace(/\b1 plekken\b/g, '1 plek').replace(/stopped 1 times/g, 'stopped once').replace(/\b1 times\b/g, 'once').replace(/stopte 1 keer/g, 'stopte één keer').replace(/\b1 wins\b/g, '1 win').replace(/\b1 podiums\b/g, '1 podium').replace(/\b1 zeges\b/g, '1 zege')
       .replace(/\b(Rounds|Ronde|Ronden) (\d+)–\2\b/g, (_, w, n) => (w === 'Rounds' ? 'Round ' : 'Ronde ') + n)
       .replace(/(\b1 race), van ([^\n]+?) tot \2(?=\n|$)/g, '$1, $2').replace(/(\b1 race), ([^\n]+?) to \2(?=\n|$)/g, '$1, $2');
   }

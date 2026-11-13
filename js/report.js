@@ -25,26 +25,41 @@
     let section = '';
     for (const line of text.split('\n')) {
       const s = line.trim();
-      if (s.startsWith('## ')) { section = s.slice(3).toLowerCase(); continue; }
+      if (s.startsWith('## ')) { section = s.slice(3).toLowerCase(); out._tbl = null; continue; }
       if (!s) continue;
       if (section.startsWith('final classification')) {
         const c = RX.cls.exec(s); if (!c) continue;
         const who = /^(.+?)\s+\((.+)\)$/.exec(c[3].trim());
         const rest = c[4];
         const dnf = /\b(DNF|DSQ|DNS|NC)\b(?:\s*\(Lap\s*(\d+)\))?/i.exec(rest) || (c[2] ? [c[2], c[2]] : null);
-        const gapS = /\+\s*(?:(\d+):)?(\d+(?:\.\d+)?)\s*s\b/.exec(rest), gapL = /\+\s*(\d+)\s*laps?\b/i.exec(rest);
+        const gapS = /\+\s*(?:(\d+):)?(\d+(?:\.\d+)?)\s*s\b/.exec(rest) || /gap:\s*\+\s*(?:(\d+):)?(\d+(?:\.\d+)?)(?!\s*laps?)\s*(?:\||$)/i.exec(rest), gapL = /\+\s*(\d+)\s*laps?\b/i.exec(rest);
         out.cls.push({ pos: c[1] ? +c[1] : null, driver: who ? who[1] : c[3].trim(), team: who ? who[2] : '',
           start: (/started\s+P(\d+)/i.exec(rest) || [])[1] ? +/started\s+P(\d+)/i.exec(rest)[1] : null,
           stops: (/(\d+)\s*stop/i.exec(rest) || [])[1] != null ? +/(\d+)\s*stop/i.exec(rest)[1] : null,
           out: dnf ? dnf[1].toUpperCase() : null, outLap: dnf && dnf[2] ? +dnf[2] : null,
-          gap: gapS ? (gapS[1] ? +gapS[1] * 60 : 0) + +gapS[2] : null, lapsDown: gapL ? +gapL[1] : null });
+          gap: gapS ? (gapS[1] ? +gapS[1] * 60 : 0) + +gapS[2] : null, lapsDown: gapL ? +gapL[1] : null,
+          tyres: ((/tyres?:\s*([^|]+)/i.exec(rest) || [])[1] || '').trim() || null, pts: (/(\d+(?:\.\d+)?)\s*pts\b/i.exec(rest) || [])[1] != null ? +/(\d+(?:\.\d+)?)\s*pts\b/i.exec(rest)[1] : 0 });
       } else if (section.startsWith('pit stop')) {
         const p = RX.pit.exec(s); if (!p) continue;
-        out.pits.push({ lap: +p[1], driver: p[2].trim(), what: p[3].trim(), time: +p[4], botched: /botch/i.test(s), fuel: /^fuel/i.test(p[3].trim()) });
+        const mv = /\(P(\d+)\s*(?:→|->)\s*P(\d+)\)/.exec(s), cmp = /^(.+?)\s*>\s*(.+)$/.exec(p[3].trim());
+        out.pits.push({ lap: +p[1], driver: p[2].trim(), what: p[3].trim(), time: +p[4], botched: /botch/i.test(s), fuel: /^fuel/i.test(p[3].trim()),
+          before: mv ? +mv[1] : null, after: mv ? +mv[2] : null, from: cmp ? cmp[1].trim() : null, to: cmp ? cmp[2].trim() : null });
       } else if (section.startsWith('race direction')) {
-        const e = RX.ev.exec(s); if (e) out.events.push({ lap: +e[1], text: e[2].trim() });
+        const e = RX.ev.exec(s); if (e) out.events.push({ lap: +e[1], text: e[2].trim().replace(/^→\s*/, ''), sub: /^\s*→/.test(e[2]) });
+      } else if (section.startsWith('championship standings')) {
+        // "## Championship standings BEFORE/AFTER" with "### Drivers" / "### Constructors"
+        const when = /after/i.test(section) ? 'after' : 'before';
+        out.standings = out.standings || { before: { drivers: [], teams: [] }, after: { drivers: [], teams: [] } };
+        if (/^###\s*drivers/i.test(s)) { out._tbl = 'drivers'; continue; }
+        if (/^###\s*(constructors|teams)/i.test(s)) { out._tbl = 'teams'; continue; }
+        const r = new RegExp('^P(\\d+)\\.?\\s+(.+?)\\s+' + DASH + '\\s+([\\d.]+)\\s*pts', 'i').exec(s);
+        if (r && out._tbl) { const w = /^(.+?)\s+\((.+)\)$/.exec(r[2].trim());
+          out.standings[when][out._tbl].push({ pos: +r[1], name: w && out._tbl === 'drivers' ? w[1] : r[2].trim(), team: w && out._tbl === 'drivers' ? w[2] : r[2].trim(), points: +r[3] }); }
+      } else if (section.startsWith('neutrali')) {
+        const sc = /^safety car:\s*\d+\s*\((.+)\)/i.exec(s); if (sc) out.scLaps = (sc[1].match(/\d+/g) || []).map(Number);
       }
     }
+    delete out._tbl;
     const ev = out.events.map(e => e.text);
     out.sc = ev.filter(t => /safety car deployed/i.test(t) && !/virtual/i.test(t)).length;
     out.vsc = ev.filter(t => /virtual safety car/i.test(t) && !/(end|ending|withdrawn|green)/i.test(t)).length;

@@ -571,5 +571,83 @@
     footer(ctx, v.rows.length + ' ' + t.teams);
   }
 
-  root.DMExtraCards = { stretch, preview, transfer, duel, devrace, wrapped, mpround, mptable, mph2h, mpdev, mpgrid };
+  // ------------------------------------------------------------ race report and strategy room (from the race recap)
+  const RLW = { en: { report: 'Race report', strat: 'Strategy room', none: 'Load the race recap to make this card.', laps: 'laps', lap: 'Lap', caution: 'Caution', stage: 'Stage', out: 'Retired',
+      top: 'Top 5', from: 'from', win: 'Winner', margin: 'Margin', cautions: 'Cautions', dnf: 'Did not finish', charge: 'Charge of the day', leader: 'Championship leader', newLeader: 'New leader',
+      plan: 'Winning strategy', stopsN: 'stops', paid: 'Paid off best', avg: 'avg finish', yellow: 'Under caution', ofStops: 'of all stops', bestPit: 'Best stop', worstPit: 'Most expensive stop', places: 'places', fastest: 'Fastest stop',
+      gain: 'gained places in the stop', lose: 'lost places', green: 'green-flag stop', yellowStop: 'stop under caution' },
+    nl: { report: 'Raceverslag', strat: 'Strategiekamer', none: 'Laad de racerecap om deze kaart te maken.', laps: 'ronden', lap: 'Ronde', caution: 'Caution', stage: 'Stage', out: 'Uitgevallen',
+      top: 'Top 5', from: 'vanaf', win: 'Winnaar', margin: 'Verschil', cautions: 'Cautions', dnf: 'Niet gefinisht', charge: 'Inhaalrace van de dag', leader: 'Leider kampioenschap', newLeader: 'Nieuwe leider',
+      plan: 'Winnende strategie', stopsN: 'stops', paid: 'Werkte het best', avg: 'gem. finish', yellow: 'Onder caution', ofStops: 'van alle stops', bestPit: 'Beste stop', worstPit: 'Duurste stop', places: 'plekken', fastest: 'Snelste stop',
+      gain: 'plekken gewonnen in de stop', lose: 'plekken verloren', green: 'stop onder groen', yellowStop: 'stop onder caution' } };
+  const sur = n => String(n || '').trim().split(/\s+/).slice(-1)[0];
+  // lap axis with caution bands and stage ticks
+  function lapAxis(ctx, v, x0, x1, y0, y1, t) {
+    const L = Math.max(1, v.laps || 1), xa = l => x0 + (Math.max(0, Math.min(L, l)) / L) * (x1 - x0);
+    for (const c of v.cautions || []) { ctx.fillStyle = 'rgba(244,196,48,0.16)'; ctx.fillRect(xa(c.from), y0, Math.max(3, xa(c.to) - xa(c.from)), y1 - y0); ctx.fillStyle = C.gold; ctx.fillRect(xa(c.from), y0, 2, y1 - y0); }
+    for (const st of v.stages || []) { ctx.setLineDash([4, 4]); ctx.strokeStyle = C.bgMuted; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(xa(st.lap), y0); ctx.lineTo(xa(st.lap), y1); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = F(700, 11); ctx.fillStyle = C.bgMuted; ctx.fillText('S' + st.n, xa(st.lap) + 4, y0 + 12); }
+    ctx.fillStyle = C.bgLine; ctx.fillRect(x0, y1, x1 - x0, 1);
+    ctx.font = F(600, 11); ctx.fillStyle = C.bgMuted; for (let k = 0; k <= 4; k++) { const l = Math.round(L * k / 4); ctx.textAlign = k === 0 ? 'left' : k === 4 ? 'right' : 'center'; ctx.fillText(String(l), xa(l), y1 + 16); } ctx.textAlign = 'left';
+    return xa;
+  }
+  function pitwall(canvas, s, v, opts) {
+    const lang = lg(opts), t = RLW[lang], ctx = frame(canvas, opts.scale || 2, null);
+    if (!v || v.empty) { kicker(ctx, t.strat, [v && v.category, v && v.season].filter(Boolean).join(' ')); ctx.font = F(800, 30, true); ctx.fillStyle = C.bgMuted; ctx.fillText(t.none, 48, 200); footer(ctx, ''); return; }
+    kicker(ctx, t.strat, [[v.category, v.season].filter(Boolean).join(' '), v.laps + ' ' + t.laps].join('  ·  '), C.gold);
+    ctx.font = F(800, 52, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, String(v.circuit).toUpperCase(), 1100), 44, 122);
+    // pit timeline: one row per car to follow
+    const x0 = 230, x1 = 740, y0 = 160, rows = v.rows.slice(0, 8), rh = Math.min(48, Math.floor(380 / Math.max(rows.length, 1))), y1 = y0 + rows.length * rh + 6;
+    const xa = lapAxis(ctx, v, x0, x1, y0, y1, t);
+    rows.forEach((c, k) => {
+      const y = y0 + 6 + k * rh + rh / 2;
+      ctx.fillStyle = (c.follow && c.follow.color) || C.bgText; ctx.fillRect(48, y - 14, 5, 28);
+      ctx.font = F(800, 16, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, sur(c.driver).toUpperCase(), 110), 62, y - 1);
+      ctx.font = F(500, 11); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, (c.follow && c.follow.player ? String(c.follow.player).replace(/^@/, '') : c.team), 110), 62, y + 13);
+      ctx.font = F(800, 15, true); ctx.fillStyle = c.out ? C.redText : c.pos <= 3 ? C.gold : C.bgText; ctx.textAlign = 'right'; ctx.fillText(c.out ? 'DNF' : 'P' + c.pos, x0 - 14, y + 5); ctx.textAlign = 'left';
+      ctx.fillStyle = C.bgLine; ctx.fillRect(x0, y, x1 - x0, 1);
+      if (c.out && c.outLap) { ctx.fillStyle = C.redText; ctx.font = F(900, 16, true); ctx.textAlign = 'center'; ctx.fillText('×', xa(c.outLap), y + 6); ctx.textAlign = 'left'; }
+      for (const p of c.pits) { const r = 7 + Math.min(5, Math.abs(p.delta || 0) / 2);
+        ctx.fillStyle = p.delta > 0 ? C.green : p.delta < 0 ? C.redText : C.bgMuted; ctx.beginPath(); ctx.arc(xa(p.lap), y, r, 0, Math.PI * 2); ctx.fill();
+        if (p.caution) { ctx.strokeStyle = C.gold; ctx.lineWidth = 2; ctx.stroke(); }
+        if (p.delta) { ctx.font = F(800, 10, true); ctx.fillStyle = C.ink; ctx.textAlign = 'center'; ctx.fillText((p.delta > 0 ? '+' : '') + p.delta, xa(p.lap), y + 4); ctx.textAlign = 'left'; } }
+    });
+    ctx.font = F(500, 12); ctx.fillStyle = C.bgMuted;
+    ctx.fillText(fit(ctx, (lang === 'nl' ? 'Bolletje = pitstop (groen: plekken gewonnen, rood: verloren, gouden rand: onder caution) · geel vlak = caution' : 'Dot = pit stop (green: places gained, red: lost, gold ring: under caution) · yellow band = caution'), 692), 48, Math.min(590, y1 + 40));
+    // the strategy story
+    const ax = 790, aw = W - 48 - ax; panel(ctx, ax, 150, aw, 440); let ay = 172;
+    if (v.winner) ay = award(ctx, t.plan, v.winner.stops + ' ' + t.stopsN + ' · ' + sur(v.winner.driver), v.winner.team, ax + 18, ay, aw - 30, C.gold);
+    if (v.bestPlan && v.plans.length > 1) ay = award(ctx, t.paid, v.bestPlan.stops + ' ' + t.stopsN + ' · ' + t.avg + ' P' + n1(v.bestPlan.avg, lang), v.plans.map(p => p.stops + ': ' + p.n + '×').join('  ·  '), ax + 18, ay, aw - 30, C.green);
+    if (v.cautions.length) ay = award(ctx, t.yellow, v.yellowShare + '% ' + t.ofStops, v.cautions.length + ' cautions', ax + 18, ay, aw - 30, C.gold);
+    if (v.bestPit && ay < 470) ay = award(ctx, t.bestPit, sur(v.bestPit.driver) + ' · +' + v.bestPit.delta + ' ' + t.places, t.lap + ' ' + v.bestPit.lap + '  ·  ' + v.bestPit.time + ' s', ax + 18, ay, aw - 30, C.green);
+    if (v.fastest && ay < 500) award(ctx, t.fastest, sur(v.fastest.driver) + ' · ' + n1(v.fastest.time, lang) + ' s', v.fastest.team, ax + 18, ay, aw - 30, C.orange);
+    footer(ctx, v.stops + ' pit stops');
+  }
+  function raceboard(canvas, s, v, opts) {
+    const lang = lg(opts), t = RLW[lang], ctx = frame(canvas, opts.scale || 2, null);
+    if (!v || v.empty) { kicker(ctx, t.report, [v && v.category, v && v.season].filter(Boolean).join(' ')); ctx.font = F(800, 30, true); ctx.fillStyle = C.bgMuted; ctx.fillText(t.none, 48, 200); footer(ctx, ''); return; }
+    kicker(ctx, t.report, [[v.category, v.season].filter(Boolean).join(' '), v.laps + ' ' + t.laps, v.field + (lang === 'nl' ? ' starters' : ' starters')].join('  ·  '), C.gold);
+    ctx.font = F(800, 52, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, String(v.circuit).toUpperCase(), 1100), 44, 122);
+    // the race on one line: cautions, stages, retirements, contacts of the teams to follow
+    const x0 = 48, x1 = W - 48, y0 = 150, y1 = 214, xa = lapAxis(ctx, v, x0, x1, y0, y1, t);
+    for (const r of v.retired) if (r.lap) { ctx.fillStyle = r.follow ? C.redText : C.bgMuted; ctx.font = F(900, r.follow ? 20 : 14, true); ctx.textAlign = 'center'; ctx.fillText('×', xa(r.lap), y1 - 8); ctx.textAlign = 'left'; }
+    for (const m of v.moments) { ctx.fillStyle = C.orange; ctx.beginPath(); ctx.arc(xa(m.lap), y0 + 34, 5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.font = F(500, 12); ctx.fillStyle = C.bgMuted; ctx.fillText(lang === 'nl' ? 'Geel: caution · S: einde stage · ×: uitvaller · oranje: incident van een team om te volgen' : 'Yellow: caution · S: end of stage · ×: retirement · orange: incident of a team to watch', x0, y1 + 34);
+    // top 5
+    const tx = 48; label2(ctx, t.top, tx, 282);
+    v.top.forEach((c, k) => { const y = 318 + k * 52, follow = v.followed.some(f => f.driver === c.driver);
+      if (follow) { ctx.fillStyle = C.bgRow; ctx.fillRect(tx - 8, y - 30, 690, 46); ctx.fillStyle = C.gold; ctx.fillRect(tx - 8, y - 30, 3, 46); }
+      ctx.font = F(900, 26, true); ctx.fillStyle = k === 0 ? C.gold : C.bgText; ctx.fillText(String(c.pos), tx, y);
+      ctx.font = F(800, 20, true); ctx.fillStyle = C.bgText; const nm = fit(ctx, String(c.driver).toUpperCase(), 330); ctx.fillText(nm, tx + 40, y);
+      ctx.font = F(500, 14); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, c.team, 240), tx + 50 + ctx.measureText(nm).width * 0 + Math.min(330, ctx.measureText(nm).width) + 30, y - 1);
+      ctx.textAlign = 'right'; ctx.font = F(600, 14); ctx.fillStyle = C.bgMuted; ctx.fillText(c.start ? t.from + ' P' + c.start : '', tx + 680, y - 1); ctx.textAlign = 'left'; });
+    const ax = 790, aw = W - 48 - ax; panel(ctx, ax, 260, aw, 330); let ay = 282;
+    if (v.winner) ay = award(ctx, t.margin, v.margin != null ? (lang === 'nl' ? String(+v.margin.toFixed(3)).replace('.', ',') : String(+v.margin.toFixed(3))) + ' s' : '1+ ' + t.laps, v.second ? (lang === 'nl' ? 'voor ' : 'over ') + sur(v.second.driver) : null, ax + 18, ay, aw - 30, C.gold);
+    ay = award(ctx, t.cautions + ' · ' + t.dnf, v.cautions.length + '  ·  ' + v.retired.length, null, ax + 18, ay, aw - 30, C.orange);
+    if (v.climb && ay < 470) ay = award(ctx, t.charge, sur(v.climb.driver) + ' · P' + v.climb.start + ' → P' + v.climb.pos, v.climb.team, ax + 18, ay, aw - 30, C.green);
+    if ((v.change || v.leader) && ay < 500) award(ctx, v.change ? t.newLeader : t.leader, v.change ? v.change.to : v.leader.team, v.leader ? v.leader.points + ' pts' + (v.leader.gap != null ? '  ·  +' + n1(v.leader.gap, lang) : '') : null, ax + 18, ay, aw - 30, C.bgText);
+    footer(ctx, v.followed.length ? v.followed.map(f => sur(f.driver) + ' ' + (f.out ? 'DNF' : 'P' + f.pos)).slice(0, 6).join('  ·  ') : '');
+  }
+
+  root.DMExtraCards = { stretch, preview, transfer, duel, devrace, wrapped, mpround, mptable, mph2h, mpdev, mpgrid, pitwall, raceboard };
 })(typeof self !== 'undefined' ? self : this);

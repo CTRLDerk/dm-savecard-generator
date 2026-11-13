@@ -3,12 +3,12 @@
    development race · season wrapped. Data from the save and the journal; text in EN/NL.
    Ratings are shown as words, never as numbers. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./save.js'), require('./views.js'), require('./text.js'), require('./mp.js'));
-  else root.DMExtra = factory(root.DMSave, root.DMViews, root.DMText, root.DMMp);
-})(typeof self !== 'undefined' ? self : this, function (S, V, T, MP) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./save.js'), require('./views.js'), require('./text.js'), require('./mp.js'), require('./racelog.js'));
+  else root.DMExtra = factory(root.DMSave, root.DMViews, root.DMText, root.DMMp, root.DMRaceLog);
+})(typeof self !== 'undefined' ? self : this, function (S, V, T, MP, RL) {
   'use strict';
   const num = S.num, short = S.shortName;
-  const KINDS = ['stretch', 'preview', 'transfer', 'duel', 'devrace', 'wrapped', 'mpround', 'mptable', 'mph2h', 'mpdev', 'mpgrid'];
+  const KINDS = ['stretch', 'preview', 'transfer', 'duel', 'devrace', 'wrapped', 'mpround', 'mptable', 'mph2h', 'mpdev', 'mpgrid', 'raceboard', 'pitwall'];
   const WORDS = { en: ['Poor', 'Shaky', 'Solid', 'Strong', 'World-class'], nl: ['Zwak', 'Wankel', 'Degelijk', 'Sterk', 'Wereldklasse'] };
   const rankWord = (rank, of) => { const x = of > 1 ? (rank - 1) / (of - 1) : 0; return x <= 0.1 ? 4 : x <= 0.3 ? 3 : x <= 0.6 ? 2 : x <= 0.85 ? 1 : 0; };
   const levelWord = l => (l == null ? null : l < 4 ? 0 : l < 5.5 ? 1 : l < 7 ? 2 : l < 8.5 ? 3 : 4);
@@ -302,6 +302,7 @@
     if (kind === 'devrace') return devrace(files, s);
     if (kind === 'wrapped') return wrapped(files, s, journal);
     if (MP && MP.KINDS.includes(kind)) return MP.view(kind, files, s, seasonRaces(files, s));
+    if (RL && RL.KINDS.includes(kind)) return RL.view(kind, s, opts.exp || null);
     if (kind === 'mpdev') return mpdev(files, s);
     if (kind === 'mpgrid') return mpgrid(files, s);
     return null;
@@ -339,6 +340,7 @@
   function text(kind, v, opts) {
     opts = opts || {};
     if (MP && (MP.KINDS.includes(kind) || kind === 'mpdev' || kind === 'mpgrid')) return T.tidy(MP.text(kind, v, opts));
+    if (RL && RL.KINDS.includes(kind)) return T.tidy(RL.text(kind, v, opts));
     const lang = TX[opts.lang] ? opts.lang : 'en', t = TX[lang][kind], w = WORDS[lang];
     const n1 = x => { if (x == null) return '–'; const s = Number.isInteger(x) ? String(x) : (+x).toFixed(1); return lang === 'nl' ? s.replace('.', ',') : s; };
     const out = [];
@@ -412,6 +414,8 @@
     duel: 'Topic: the head-to-head between the two teammates this season: races won against each other, qualifying, points, best result, DNFs, who leads the duel.',
     devrace: 'Topic: the development race: how our car developed this season compared with the leader and the teams around us; ratings only as words (poor, shaky, solid, strong, world-class), never as numbers.',
     wrapped: 'Topic: a "Season Wrapped" year-in-review for this team, like Spotify Wrapped: one big fact per line (final position, races, wins, podiums, best moment, biggest climb, driver of the year, factory, the story in chapters). Personal and celebratory, honest about setbacks.',
+    raceboard: RL ? RL.TOPIC.raceboard : '',
+    pitwall: RL ? RL.TOPIC.pitwall : '',
     mpround: 'Topic: a paddock report on this multiplayer round, written as a journalist covering the league (third person, never "we"): every player team\'s result, the best player, the biggest climb, retirements, who moved in the championship and the closest fight between players.',
     mptable: 'Topic: the players\' championship of this multiplayer league, written as a journalist (third person, never "we"): who leads among the human players, the gaps, who is in form.',
     mph2h: 'Topic: who beats whom among the human players on race days, written as a journalist (third person, never "we"): the dominant player, the most one-sided and the closest duel.',

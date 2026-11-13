@@ -514,13 +514,13 @@
   // Multiplayer has its own tab: seasons, recaps, players, host save.
   const GROUPS = [
     ['story', 'Story', [['episode', 'Chapter'], ['stretch', 'Summary']]],
-    ['weekend', 'Race weekend', [['preview', 'Preview'], ['race', 'Result'], ['strategy', 'Strategy'], ['us', 'NASCAR recap']]],
+    ['weekend', 'Race weekend', [['preview', 'Preview'], ['race', 'Result'], ['raceboard', 'Race report'], ['strategy', 'Strategy'], ['pitwall', 'Strategy room'], ['us', 'NASCAR recap']]],
     ['team', 'Team', [['duel', 'Duel'], ['devrace', 'Development'], ['rnd', 'R&D'], ['transfer', 'Contracts'], ['paddock', 'Paddock']]],
     ['season', 'Season', [['seasonStart', 'Preview'], ['championship', 'Standings'], ['seasonEnd', 'Review'], ['wrapped', 'Wrapped']]],
     ['players', 'Players', [['mpround', 'Paddock report'], ['mptable', 'Players’ table'], ['mph2h', 'Who beats whom'], ['mpdev', 'Arms race'], ['mpgrid', 'Drivers & strategy']]]
   ];
   // Post types that work on race recaps alone (multiplayer: no save).
-  const MP_KINDS = new Set(['race', 'stretch', 'episode', 'duel', 'wrapped', 'championship', 'seasonEnd', 'strategy', 'us', 'mpround', 'mptable', 'mph2h', 'mpgrid']);
+  const MP_KINDS = new Set(['race', 'stretch', 'episode', 'duel', 'wrapped', 'championship', 'seasonEnd', 'strategy', 'us', 'mpround', 'mptable', 'mph2h', 'mpgrid', 'raceboard', 'pitwall']);
   const PLAYER_KINDS = new Set(['mpround', 'mptable', 'mph2h', 'mpdev', 'mpgrid']);
   const hasPlayers = s => !!(s && s.players && s.players.length >= 2);
   function renderTabs() {
@@ -582,7 +582,7 @@
   // What each post type can do: card options, text sources, voices. The page shows only these.
   const KIND_NAMES = { race: 'Race & season', stretch: 'Race summary', episode: 'Chapter', preview: 'Raceweek preview', transfer: 'Here we go', duel: 'Teammate duel', devrace: 'Development race', wrapped: 'Season wrapped',
     seasonStart: 'Season preview', seasonEnd: 'Season review', us: 'NASCAR recap', strategy: 'Race strategy', championship: 'Championship', rnd: 'R&D update', paddock: 'Paddock news',
-    mpround: 'Paddock report', mptable: 'Players’ table', mph2h: 'Who beats whom', mpdev: 'Arms race', mpgrid: 'Drivers & strategy' };
+    mpround: 'Paddock report', mptable: 'Players’ table', mph2h: 'Who beats whom', mpdev: 'Arms race', mpgrid: 'Drivers & strategy', raceboard: 'Race report', pitwall: 'Strategy room' };
   function caps(kind, src) {
     const extra = XT && XT.KINDS.includes(kind), ep = kind === 'episode';
     const texts = kind === 'race' ? [['social', 'Social post'], ['report', 'Race report'], ['message', 'Progress message'], ['diary', 'Playthrough log'], ['ai', 'Write with AI (chat)']]
@@ -594,7 +594,7 @@
       texts, voice, voices: src === 'ai' ? [['team', 'Team account'], ['hype', 'Fan account'], ['press', 'Journalist'], ['diary', 'Playthrough (me)']] : [['team', 'Team account'], ['hype', 'Fan account'], ['press', 'Journalist']],
       about: kind === 'race' && (src === 'social' || src === 'ai'), ai: src === 'ai',
       card: { table: kind === 'race', epcard: ep, epscope: ep, slide: kind === 'wrapped', person: kind === 'transfer', range: kind === 'stretch' },
-      exp: !isMp(st.sel) && ['race', 'strategy', 'us', 'episode'].includes(kind)
+      exp: !isMp(st.sel) && ['race', 'strategy', 'us', 'episode', 'raceboard', 'pitwall'].includes(kind)
     };
   }
 
@@ -785,7 +785,7 @@
   // ------------------------------------------------------------ extra post types (preview, here we go, duel, development, wrapped)
   async function updateExtra() {
     const s = st.summary, o = st.opt;
-    st.view = XT.view(o.kind, st.files, s, st.journal, { person: o.person || null, from: o.from || null, to: o.to || null });
+    st.view = XT.view(o.kind, st.files, s, st.journal, { person: o.person || null, from: o.from || null, to: o.to || null, exp: st.exp && s.last && R.sameTrack(st.exp.circuit, s.last.name) ? st.exp : null });
     if (o.kind === 'stretch' && st.view && !st.view.empty) {
       const opt = (r, cur) => '<option value="' + r.round + '"' + (r.round === cur ? ' selected' : '') + '>R' + r.round + ' · ' + esc(r.name) + '</option>';
       $('#o-from').innerHTML = st.view.rounds.map(r => opt(r, st.view.from)).join('');
@@ -977,7 +977,7 @@
     if (!exp) { note('#expnote', 'Not a race summary export (no "=== Race summary — … ===" line).', 'err'); return false; }
     st.exp = exp; st.expName = name || null; st.variant = 0;
     renderExpNote();
-    if (st.opt.kind === 'strategy' || st.opt.kind === 'us') { update(); return true; }
+    if (['strategy', 'us', 'raceboard', 'pitwall'].includes(st.opt.kind)) { update(); return true; }
     if (!st.dirty && st.opt.src !== 'ai') setText(templateText());
     else note('#gennote', 'Export loaded. Press “' + (st.opt.src === 'ai' ? 'Open in Claude' : 'New wording') + '” to use it.', 'ok');
     return true;
