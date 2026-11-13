@@ -396,5 +396,180 @@
     return canvas;
   }
 
-  root.DMExtraCards = { stretch, preview, transfer, duel, devrace, wrapped };
+  // ------------------------------------------------------------ multiplayer: the player teams side by side (journalist's view)
+  const ML = {
+    en: { round: 'Paddock report', table: 'Players’ championship', h2h: 'Who beats whom', rnd: 'Round', best: 'Best of the players', climb: 'Biggest climb', out: 'Out of the race', close: 'Closest fight',
+      champ: 'Champ.', from: 'from', pts: 'pts', overall: 'Overall', form: 'Last races', gap: 'Gap', none: 'Add two or more player teams on the Multiplayer tab.', noRaces: 'No race run yet.',
+      teams: 'player teams', places: 'places', after: 'after round', of: 'of', lead: 'Leader', hot: 'In form', avg: 'avg', dom: 'Top dog', one: 'One-sided', even: 'Dead heat', raceDays: 'race days, best car v best car', wins: 'W', pods: 'PD', moved: 'In the standings' },
+    nl: { round: 'Paddockverslag', table: 'Spelerskampioenschap', h2h: 'Wie verslaat wie', rnd: 'Ronde', best: 'Beste speler', climb: 'Grootste inhaalrace', out: 'Uitgevallen', close: 'Spannendste gevecht',
+      champ: 'Kamp.', from: 'vanaf', pts: 'ptn', overall: 'Totaal', form: 'Laatste races', gap: 'Gat', none: 'Voeg twee of meer spelersteams toe op het tabblad Multiplayer.', noRaces: 'Nog geen race gereden.',
+      teams: 'spelersteams', places: 'plekken', after: 'na ronde', of: 'van', lead: 'Leider', hot: 'In vorm', avg: 'gem.', dom: 'De baas', one: 'Eenzijdig', even: 'Gelijk op', raceDays: 'racedagen, beste auto tegen beste auto', wins: 'Z', pods: 'PD', moved: 'In de stand' }
+  };
+  const pname = r => (r.player ? String(r.player).replace(/^@/, '') : r.short);
+  function mpEmpty(ctx, t, v, kick) { kicker(ctx, kick, [v.category, v.season].filter(Boolean).join(' ')); ctx.font = F(800, 30, true); ctx.fillStyle = C.bgMuted; ctx.fillText(v && v.noRaces ? t.noRaces : t.none, 48, 200); footer(ctx, ''); }
+  function nameCell(ctx, r, x, y, w) {
+    ctx.fillStyle = r.color || C.bgText; ctx.fillRect(x, y - 22, 6, 30);
+    ctx.font = F(800, 21, true); ctx.fillStyle = C.bgText; const n = fit(ctx, pname(r).toUpperCase(), w - 20); ctx.fillText(n, x + 18, y);
+    if (r.player) { const nw = ctx.measureText(n).width; ctx.font = F(500, 14); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, r.short, Math.max(0, w - nw - 34)), x + 30 + nw, y - 1); }
+  }
+  function award(ctx, head, line, sub, x, y, w, col) {
+    ctx.fillStyle = col || C.bgLine; ctx.fillRect(x, y, 4, 54); label2(ctx, head, x + 16, y + 14);
+    ctx.font = F(800, 20, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, line, w - 20), x + 16, y + 38);
+    if (sub) { ctx.font = F(500, 14); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, sub, w - 20), x + 16, y + 58); }
+    return y + (sub ? 82 : 66);
+  }
+  function mpround(canvas, s, v, opts) {
+    const lang = lg(opts), t = ML[lang], ctx = frame(canvas, opts.scale || 2, null);
+    if (!v || v.empty) return mpEmpty(ctx, t, v || {}, t.round);
+    kicker(ctx, t.round, [[v.category, v.season].filter(Boolean).join(' '), t.rnd + ' ' + v.round + ' / ' + v.total].join('  ·  '), C.gold);
+    const tw = v.track ? 760 : 1100; let fs = 64; ctx.font = F(800, fs, true); const nm = String(v.name || '').toUpperCase();
+    while (fs > 38 && ctx.measureText(nm).width > tw) { fs -= 4; ctx.font = F(800, fs, true); }
+    ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, nm, tw), 44, 132);
+    ctx.font = F(600, 17); ctx.fillStyle = C.bgMuted; ctx.fillText(v.rows.length + ' ' + t.teams + (v.field ? '  ·  ' + v.field + (lang === 'nl' ? ' auto’s' : ' cars') : ''), 48, 162);
+    if (v.track) Card.helpers.drawTrack(ctx, v.track, 840, 40, W - 48 - 840, 130, { width: 4 });
+    // the player teams, best result first
+    const rows = v.rows.slice(0, 8), rh = Math.min(80, Math.floor(370 / Math.max(rows.length, 1))), x0 = 48, cw = 700;
+    label2(ctx, lang === 'nl' ? 'Uitslag spelersteams' : 'Player teams at the flag', x0, 206);
+    ctx.font = F(600, 12); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'right'; ctx.fillText(t.champ.toUpperCase(), x0 + cw, 206); ctx.textAlign = 'left';
+    rows.forEach((r, k) => {
+      const y = 246 + k * rh;
+      ctx.font = F(800, 18, true); ctx.fillStyle = C.bgMuted; ctx.fillText(String(k + 1), x0, y);
+      nameCell(ctx, r, x0 + 26, y, 360);
+      const cx = x0 + 420; chip(ctx, r.pos != null ? 'P' + r.pos : 'DNF', cx, y - 21, resKind(r.pos));
+      if (r.pos != null && r.start != null) { ctx.font = F(500, 14); ctx.fillStyle = C.bgMuted; ctx.fillText(t.from + ' P' + r.start + (r.gain ? (r.gain > 0 ? '  +' : '  ') + r.gain : ''), cx + 66, y - 1); }
+      ctx.textAlign = 'right'; ctx.font = F(800, 18, true); ctx.fillStyle = C.bgText; ctx.fillText(r.champ ? 'P' + r.champ : '–', x0 + cw - 34, y);
+      if (r.move) { ctx.fillStyle = r.move > 0 ? C.green : C.redText; ctx.font = F(800, 14, true); ctx.fillText((r.move > 0 ? '▲' : '▼') + Math.abs(r.move), x0 + cw, y - 1); }
+      ctx.textAlign = 'left';
+      if (k < rows.length - 1) { ctx.fillStyle = C.bgLine; ctx.fillRect(x0, y + rh / 2 - 6, cw, 1); }
+    });
+    // the stories of the round
+    const ax = 800, aw = W - 48 - ax; panel(ctx, ax, 190, aw, 400); let ay = 214;
+    if (v.top) ay = award(ctx, t.best, pname(v.top) + ' · ' + (v.top.pos != null ? 'P' + v.top.pos : 'DNF'), v.top.player ? v.top.short : null, ax + 18, ay, aw - 30, C.gold);
+    if (v.mover) ay = award(ctx, t.climb, pname(v.mover) + ' · +' + v.mover.gain + ' ' + t.places, 'P' + v.mover.start + ' → P' + v.mover.pos, ax + 18, ay, aw - 30, C.green);
+    else if (v.climber) ay = award(ctx, t.moved, pname(v.climber) + ' · P' + v.climber.prev + ' → P' + v.climber.champ, null, ax + 18, ay, aw - 30, C.green);
+    if (v.out.length && ay < 470) ay = award(ctx, t.out, v.out.map(pname).join(', '), null, ax + 18, ay, aw - 30, C.redText);
+    if (v.close && ay < 500) award(ctx, t.close, pname({ player: v.close.ap, short: v.close.a }) + ' v ' + pname({ player: v.close.bp, short: v.close.b }), n1(v.close.gap, lang) + ' ' + t.pts + '  ·  P' + v.close.posA + ' / P' + v.close.posB, ax + 18, ay, aw - 30, C.orange);
+    footer(ctx, v.next ? (lang === 'nl' ? 'Volgende: ' : 'Next: ') + v.next.name : '');
+  }
+  function mptable(canvas, s, v, opts) {
+    const lang = lg(opts), t = ML[lang], ctx = frame(canvas, opts.scale || 2, null);
+    if (!v || v.empty) return mpEmpty(ctx, t, v || {}, t.table);
+    kicker(ctx, t.table, [[v.category, v.season].filter(Boolean).join(' '), t.after + ' ' + v.raced + ' ' + t.of + ' ' + v.total].join('  ·  '), C.gold);
+    const a = v.rows[0];
+    ctx.font = F(800, 52, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, (pname(a) + (lang === 'nl' ? ' aan kop' : ' on top')).toUpperCase(), 1100), 44, 126);
+    ctx.font = F(600, 17); ctx.fillStyle = C.bgMuted;
+    ctx.fillText([v.margin != null ? (v.margin === 0 ? (lang === 'nl' ? 'gelijk met ' : 'level with ') : n1(v.margin, lang) + ' ' + t.pts + (lang === 'nl' ? ' voor op ' : ' ahead of ')) + pname(v.rows[1]) : null,
+      v.hot && v.hot !== a ? t.hot + ': ' + pname(v.hot) + ' (' + t.avg + ' P' + n1(v.hotAvg, lang) + ')' : null].filter(Boolean).join('  ·  '), 48, 158);
+    const rows = v.rows.slice(0, 8), top = 214, rh = Math.min(80, Math.floor(370 / Math.max(rows.length, 1)));
+    const cx = { rank: 48, name: 92, overall: 520, pts: 640, gap: 740, form: 820, wp: W - 48 };
+    ctx.font = F(600, 12); ctx.fillStyle = C.bgMuted;
+    [[t.overall, cx.overall], [t.pts, cx.pts], [t.gap, cx.gap], [t.form, cx.form]].forEach(([h, x]) => ctx.fillText(h.toUpperCase(), x, top - 12));
+    ctx.textAlign = 'right'; ctx.fillText(t.wins + ' / ' + t.pods, cx.wp, top - 12); ctx.textAlign = 'left';
+    rows.forEach((r, k) => {
+      const y = top + 28 + k * rh;
+      if (k === 0) { ctx.fillStyle = C.bgRow; ctx.fillRect(40, y - 30, W - 80, rh - 4); }
+      ctx.font = F(900, 26, true); ctx.fillStyle = k === 0 ? C.gold : C.bgText; ctx.fillText(String(r.rank), cx.rank, y);
+      nameCell(ctx, r, cx.name, y, cx.overall - cx.name - 20);
+      ctx.font = F(800, 20, true); ctx.fillStyle = C.bgText; ctx.fillText(r.pos ? 'P' + r.pos : '–', cx.overall, y);
+      ctx.font = F(700, 18); ctx.fillText(n1(r.points, lang), cx.pts, y);
+      ctx.font = F(500, 15); ctx.fillStyle = C.bgMuted; ctx.fillText(r.gap ? '−' + n1(r.gap, lang) : '', cx.gap, y);
+      let fx = cx.form; ctx.save(); ctx.translate(0, 0);
+      for (const p of r.form.slice(-6)) { const txt = p == null ? 'DNF' : 'P' + p; ctx.font = F(800, 12, true); const w = Math.max(34, ctx.measureText(txt).width + 10), kd = resKind(p);
+        if (kd === 'gold' || kd === 'good') { ctx.fillStyle = kd === 'gold' ? C.gold : C.green; ctx.fillRect(fx, y - 17, w, 22); ctx.fillStyle = C.ink; }
+        else { ctx.strokeStyle = kd === 'bad' ? C.redText : C.bgLine; ctx.lineWidth = 1; ctx.strokeRect(fx + .5, y - 16.5, w - 1, 21); ctx.fillStyle = kd === 'bad' ? C.redText : C.bgText; }
+        ctx.textAlign = 'center'; ctx.fillText(txt, fx + w / 2, y - 1); ctx.textAlign = 'left'; fx += w + 4; }
+      ctx.restore();
+      ctx.textAlign = 'right'; ctx.font = F(700, 15); ctx.fillStyle = C.bgText; ctx.fillText(r.wins + ' / ' + r.podiums, cx.wp, y); ctx.textAlign = 'left';
+    });
+    footer(ctx, rows.length + ' ' + t.teams);
+  }
+  function mph2h(canvas, s, v, opts) {
+    const lang = lg(opts), t = ML[lang], ctx = frame(canvas, opts.scale || 2, null);
+    if (!v || v.empty) return mpEmpty(ctx, t, v || {}, t.h2h);
+    kicker(ctx, t.h2h, [[v.category, v.season].filter(Boolean).join(' '), v.raced + ' ' + (lang === 'nl' ? 'races' : 'races')].join('  ·  '), C.gold);
+    const P = v.players, n = P.length, x0 = 48, nameW = 230, y0 = 150, gw = 700 - nameW, cs = Math.min(100, Math.floor(gw / n), Math.floor(400 / n));
+    label2(ctx, t.raceDays, x0, 104);
+    // column heads: short names, rotated
+    P.forEach((p, j) => { const cx = x0 + nameW + j * cs + cs / 2; ctx.save(); ctx.translate(cx, y0 - 8); ctx.rotate(-Math.PI / 5); ctx.font = F(700, 13); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, pname(p), 120), 0, 0); ctx.restore(); ctx.fillStyle = p.color || C.bgText; ctx.fillRect(x0 + nameW + j * cs + 4, y0, cs - 8, 4); });
+    P.forEach((a, i) => {
+      const y = y0 + 12 + i * cs;
+      ctx.fillStyle = a.color || C.bgText; ctx.fillRect(x0, y + 6, 6, cs - 12);
+      ctx.font = F(800, 18, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, pname(a).toUpperCase(), nameW - 30), x0 + 16, y + cs / 2 + 6);
+      P.forEach((b, j) => {
+        const cx = x0 + nameW + j * cs;
+        if (a === b) { ctx.fillStyle = C.bgLine; ctx.fillRect(cx + 3, y + 3, cs - 6, cs - 6); return; }
+        const w1 = (v.m[a.id] || {})[b.id] || 0, w2 = (v.m[b.id] || {})[a.id] || 0;
+        ctx.fillStyle = w1 > w2 ? 'rgba(52,199,110,0.85)' : w1 < w2 ? 'rgba(232,62,46,0.75)' : C.pit; ctx.fillRect(cx + 3, y + 3, cs - 6, cs - 6);
+        ctx.font = F(800, Math.min(20, cs / 3), true); ctx.fillStyle = w1 === w2 ? C.bgText : C.ink; ctx.textAlign = 'center'; ctx.fillText(w1 + '–' + w2, cx + cs / 2, y + cs / 2 + 7); ctx.textAlign = 'left';
+      });
+    });
+    const ax = 800, aw = W - 48 - ax; panel(ctx, ax, 150, aw, 430); let ay = 174;
+    const nm = p => pname(p);
+    if (v.dominant) ay = award(ctx, t.dom, nm(v.dominant.p), (lang === 'nl' ? 'baas over ' : 'on top of ') + v.dominant.n + ' ' + t.of + ' ' + v.dominant.of, ax + 18, ay, aw - 30, C.gold);
+    if (v.oneSided) { const A = v.oneSided.x >= v.oneSided.y ? v.oneSided.a : v.oneSided.b, B = A === v.oneSided.a ? v.oneSided.b : v.oneSided.a;
+      ay = award(ctx, t.one, nm(A) + ' v ' + nm(B), Math.max(v.oneSided.x, v.oneSided.y) + '–' + Math.min(v.oneSided.x, v.oneSided.y), ax + 18, ay, aw - 30, C.green); }
+    if (v.even && v.even !== v.oneSided) award(ctx, t.even, nm(v.even.a) + ' v ' + nm(v.even.b), v.even.x + '–' + v.even.y, ax + 18, ay, aw - 30, C.orange);
+    ctx.font = F(500, 13); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, lang === 'nl' ? 'Lees per rij: groen = deze speler finisht vaker voor de ander.' : 'Read by row: green = this player finishes ahead more often.', 700), x0, 590);
+    footer(ctx, n + ' ' + t.teams);
+  }
+
+  const AREA = { en: { speed: 'Speed', grip: 'Grip', aero: 'Aero', racePace: 'Race pace', tyreManagement: 'Tyres', dirtyAir: 'Dirty air', overtaking: 'Overtaking', reliability: 'Reliability' },
+    nl: { speed: 'Snelheid', grip: 'Grip', aero: 'Aero', racePace: 'Racetempo', tyreManagement: 'Banden', dirtyAir: 'Vuile lucht', overtaking: 'Inhalen', reliability: 'Betrouwbaar' } };
+  function mpdev(canvas, s, v, opts) {
+    const lang = lg(opts), t = ML[lang], ctx = frame(canvas, opts.scale || 2, null), nl = lang === 'nl';
+    const head = nl ? 'Wapenwedloop' : 'Arms race';
+    if (!v || v.empty) return mpEmpty(ctx, t, v || {}, head);
+    kicker(ctx, head, [[v.category, v.season].filter(Boolean).join(' '), t.teams].join('  ·  '), C.gold);
+    ctx.font = F(800, 46, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, (nl ? 'Wie bouwt de snelste auto?' : 'Who builds the fastest car?').toUpperCase(), 1100), 46, 116);
+    // car index over the season, one line per player team
+    const X0 = 70, X1 = 620, Y0 = 170, Y1 = 520, pts = v.rows.flatMap(r => r.points);
+    if (pts.length > 1) {
+      const wk = pts.map(p => p.week), val = pts.map(p => p.v), w0 = Math.min(...wk), w1 = Math.max(...wk, w0 + 1), v0 = Math.min(...val), v1 = Math.max(...val, v0 + 0.5), pad = (v1 - v0) * 0.12 + 0.2;
+      const xa = w => X0 + (w - w0) / (w1 - w0) * (X1 - X0), ya = x => Y1 - (x - (v0 - pad)) / ((v1 + pad) - (v0 - pad)) * (Y1 - Y0);
+      ctx.fillStyle = C.bgLine; for (let i = 0; i <= 4; i++) ctx.fillRect(X0, Y0 + i * (Y1 - Y0) / 4, X1 - X0, 1);
+      label2(ctx, nl ? 'Auto-index' : 'Car index', X0, Y1 + 30);
+      ctx.font = F(600, 12); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'right'; ctx.fillText((nl ? 'week ' : 'week ') + w1, X1, Y1 + 30); ctx.textAlign = 'left';
+      for (const r of v.rows) { if (r.points.length < 1) continue; ctx.strokeStyle = r.color || C.bgText; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.beginPath();
+        r.points.forEach((p, i) => (i ? ctx.lineTo(xa(p.week), ya(p.v)) : ctx.moveTo(xa(p.week), ya(p.v)))); ctx.stroke();
+        const lp = r.points[r.points.length - 1]; ctx.fillStyle = r.color || C.bgText; ctx.beginPath(); ctx.arc(xa(lp.week), ya(lp.v), 6, 0, Math.PI * 2); ctx.fill(); }
+    }
+    // the teams: car rank, gain, upgrades, strongest and weakest area
+    const ax = 660, aw = W - 48 - ax, rows = v.rows.slice(0, 6), rh = Math.min(84, Math.floor(400 / rows.length));
+    rows.forEach((r, k) => {
+      const y = 186 + k * rh;
+      nameCell(ctx, r, ax, y, aw - 110);
+      ctx.textAlign = 'right'; ctx.font = F(800, 22, true); ctx.fillStyle = k === 0 ? C.gold : C.bgText; ctx.fillText('#' + (r.carRank || '–'), ax + aw, y);
+      ctx.font = F(500, 12); ctx.fillStyle = C.bgMuted; ctx.fillText((nl ? 'auto van ' : 'car of ') + v.of, ax + aw, y + 16); ctx.textAlign = 'left';
+      ctx.font = F(600, 14); ctx.fillStyle = r.gain > 0 ? C.green : r.gain < 0 ? C.redText : C.bgMuted;
+      const g = (r.gain > 0 ? '+' : '') + n1(r.gain, lang); ctx.fillText(g, ax + 18, y + 22); const gw = ctx.measureText(g).width;
+      ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, [(r.ok + r.bad ? r.ok + '✓ ' + r.bad + '✗' : ''), r.strong ? '▲ ' + AREA[lang][r.strong.key] : '', r.weak ? '▼ ' + AREA[lang][r.weak.key] : ''].filter(Boolean).join('  ·  '), aw - gw - 150), ax + 30 + gw, y + 22);
+      if (k < rows.length - 1) { ctx.fillStyle = C.bgLine; ctx.fillRect(ax, y + rh - 30, aw, 1); }
+    });
+    footer(ctx, (nl ? 'Week ' : 'Week ') + v.week + '  ·  ' + v.rows.length + ' ' + t.teams);
+  }
+  function mpgrid(canvas, s, v, opts) {
+    const lang = lg(opts), t = ML[lang], ctx = frame(canvas, opts.scale || 2, null), nl = lang === 'nl';
+    const head = nl ? 'Coureurs & strategie' : 'Drivers & strategy';
+    if (!v || v.empty) return mpEmpty(ctx, t, v || {}, head);
+    kicker(ctx, head, [[v.category, v.season].filter(Boolean).join(' '), v.race ? t.rnd + ' ' + v.round + ' · ' + v.race : ''].filter(Boolean).join('  ·  '), C.gold);
+    ctx.font = F(800, 46, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, (nl ? 'Wie haalt het meest uit zijn coureurs?' : 'Who gets the most from the drivers?').toUpperCase(), 1100), 46, 116);
+    const x0 = 48, cw = 700, rows = v.rows.slice(0, 6), rh = Math.min(90, Math.floor(400 / rows.length));
+    ctx.font = F(600, 12); ctx.fillStyle = C.bgMuted; ctx.fillText((nl ? 'COUREURS (KLASSEMENT)' : 'DRIVERS (STANDINGS)'), x0 + 250, 158); ctx.textAlign = 'right'; ctx.fillText(nl ? 'LAATSTE RACE · STOPS' : 'LAST RACE · STOPS', x0 + cw, 158); ctx.textAlign = 'left';
+    rows.forEach((r, k) => {
+      const y = 200 + k * rh;
+      nameCell(ctx, r, x0, y, 240);
+      ctx.font = F(500, 15); ctx.fillStyle = C.bgText;
+      r.drivers.slice(0, 2).forEach((d, i) => { const surname = String(d.name).split(' ').slice(-1)[0]; ctx.fillText(fit(ctx, surname + '  P' + (d.pos || '–'), 220), x0 + 250, y - 4 + i * 20); });
+      if (r.last) { const cx = x0 + cw - 120; chip(ctx, r.last.pos != null ? 'P' + r.last.pos : 'DNF', cx, y - 21, resKind(r.last.pos));
+        ctx.textAlign = 'right'; ctx.font = F(800, 20, true); ctx.fillStyle = C.bgText; ctx.fillText(r.last.stops != null ? String(r.last.stops) : '–', x0 + cw, y); ctx.textAlign = 'left'; }
+      if (k < rows.length - 1) { ctx.fillStyle = C.bgLine; ctx.fillRect(x0, y + rh - 34, cw, 1); }
+    });
+    const ax = 800, aw = W - 48 - ax; panel(ctx, ax, 150, aw, 440); let ay = 174;
+    if (v.topDriver) ay = award(ctx, nl ? 'Beste coureur' : 'Top driver', v.topDriver.name + ' · P' + v.topDriver.pos, v.topDriver.player ? String(v.topDriver.player).replace(/^@/, '') + ' · ' + v.topDriver.team : v.topDriver.team, ax + 18, ay, aw - 30, C.gold);
+    if (v.winner) ay = award(ctx, nl ? 'Beste strategie' : 'Best strategy', pname(v.winner) + ' · P' + v.winner.last.pos, v.winner.last.stops + (v.winner.last.stops === 1 ? ' stop' : ' stops'), ax + 18, ay, aw - 30, C.green);
+    if (v.split) award(ctx, nl ? 'Andere keuze' : 'Split strategies', pname(v.split.few) + ' ' + v.split.few.last.stops + '  v  ' + pname(v.split.many) + ' ' + v.split.many.last.stops, nl ? 'stops in de laatste race' : 'stops in the last race', ax + 18, ay, aw - 30, C.orange);
+    footer(ctx, v.rows.length + ' ' + t.teams);
+  }
+
+  root.DMExtraCards = { stretch, preview, transfer, duel, devrace, wrapped, mpround, mptable, mph2h, mpdev, mpgrid };
 })(typeof self !== 'undefined' ? self : this);

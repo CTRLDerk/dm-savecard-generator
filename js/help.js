@@ -51,6 +51,13 @@
 <li><b>Players</b>: one line per player, <code>* @discordname - Team name</code>. <b>Save as .txt</b> to read it back next season.</li>
 <li><b>Player teams</b>: tick who drove in which round.</li></ol>
 <p>Are you the host? Choose your save at <b>I am host</b>: then every card uses the save, and <b>Fill from save</b> lists the other human teams.</p>`],
+        ['players', 'Players (multiplayer)', `
+<p>With two or more player teams (a multiplayer season with players added, or a co-op save) a <b>Players</b> group appears under Chapter. These posts are written as a journalist covering the league, not as one team:</p>
+<ul><li><b>Paddock report</b>: the round for every player team: best player, biggest climb, retirements, closest fight.</li>
+<li><b>Players’ table</b>: the championship among the players, with gaps and form.</li>
+<li><b>Who beats whom</b>: head to head on race days, every player against every other.</li>
+<li><b>Arms race</b>: car index, upgrades and research per player team.</li>
+<li><b>Drivers &amp; strategy</b>: the drivers of each player team and the stops in the last race.</li></ul>`],
         ['images', 'Faces and logos', `
 <p>Faces and team logos are in the game folder, not in the save.</p>
 <ol><li>Press <b>Faces and logos…</b> under the save list and choose <code>Steam\\steamapps\\common\\Delta Manager\\resources</code>.</li>
@@ -111,6 +118,13 @@
 <li><b>Players</b>: één regel per speler, <code>* @discordnaam - Teamnaam</code>. <b>Save as .txt</b> om hem volgend seizoen weer in te lezen.</li>
 <li><b>Player teams</b>: vink aan wie in welke ronde meereed.</li></ol>
 <p>Ben jij de host? Kies je save bij <b>I am host</b>: dan gebruiken alle kaarten de save, en <b>Fill from save</b> zet de andere menselijke teams klaar.</p>`],
+        ['players', 'Spelers (multiplayer)', `
+<p>Met twee of meer spelersteams (een multiplayerseizoen met spelers, of een co-opsave) verschijnt onder Chapter de groep <b>Players</b>. Deze posts zijn geschreven als een journalist die de league volgt, niet vanuit één team:</p>
+<ul><li><b>Paddock report</b>: de ronde voor elk spelersteam: beste speler, grootste inhaalrace, uitvallers, spannendste gevecht.</li>
+<li><b>Players’ table</b>: het kampioenschap onder de spelers, met gaten en vorm.</li>
+<li><b>Who beats whom</b>: onderling op racedagen, elke speler tegen elke andere.</li>
+<li><b>Arms race</b>: auto-index, upgrades en onderzoek per spelersteam.</li>
+<li><b>Drivers &amp; strategy</b>: de coureurs van elk spelersteam en de stops in de laatste race.</li></ul>`],
         ['images', 'Gezichten en logo’s', `
 <p>Gezichten en teamlogo’s staan in de gamemap, niet in de save.</p>
 <ol><li>Klik <b>Faces and logos…</b> onder de lijst met saves en kies <code>Steam\\steamapps\\common\\Delta Manager\\resources</code>.</li>

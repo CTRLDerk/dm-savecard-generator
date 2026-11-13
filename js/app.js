@@ -489,7 +489,12 @@
     }
   }
   function compute() { st.summary = S.summarize(st.files, { slot: st.sel, names: false }); if (isMp(st.sel)) { st.summary.mode = 'multiplayer'; st.summary.partners = [];   // other humans are rivals here, not co-op partners
-      mpPlayers(st.summary); if (!st.hostMode && st.summary.next && /^Round \d+$/.test(st.summary.next.name)) st.summary.next = null; } }
+      mpPlayers(st.summary); if (!st.hostMode && st.summary.next && /^Round \d+$/.test(st.summary.next.name)) st.summary.next = null; }
+    // Co-op save: our team and the partners are the player teams.
+    else if (st.summary.mode === 'coop' && st.summary.focus && (st.summary.partners || []).length) {
+      const F = st.summary.focus; st.summary.players = [{ id: F.id, short: F.short, name: F.name, color: F.color, pos: F.pos, points: F.points, player: null }]
+        .concat(st.summary.partners.map(p => ({ id: p.id, short: p.short, name: p.name, color: p.color, pos: p.pos, points: p.points, player: p.manager || null }))); }
+    if (PLAYER_KINDS.has(st.opt.kind) && !hasPlayers(st.summary)) st.opt.kind = 'race'; }
 
   // ------------------------------------------------------------ redesign pieces: section heading, team hero, post-type tabs
   const sec = t => '<h2 class="sec"><span aria-hidden="true">//</span> ' + esc(t) + '</h2>';
@@ -511,10 +516,13 @@
     ['story', 'Story', [['episode', 'Chapter'], ['stretch', 'Summary']]],
     ['weekend', 'Race weekend', [['preview', 'Preview'], ['race', 'Result'], ['strategy', 'Strategy'], ['us', 'NASCAR recap']]],
     ['team', 'Team', [['duel', 'Duel'], ['devrace', 'Development'], ['rnd', 'R&D'], ['transfer', 'Contracts'], ['paddock', 'Paddock']]],
-    ['season', 'Season', [['seasonStart', 'Preview'], ['championship', 'Standings'], ['seasonEnd', 'Review'], ['wrapped', 'Wrapped']]]
+    ['season', 'Season', [['seasonStart', 'Preview'], ['championship', 'Standings'], ['seasonEnd', 'Review'], ['wrapped', 'Wrapped']]],
+    ['players', 'Players', [['mpround', 'Paddock report'], ['mptable', 'Players’ table'], ['mph2h', 'Who beats whom'], ['mpdev', 'Arms race'], ['mpgrid', 'Drivers & strategy']]]
   ];
   // Post types that work on race recaps alone (multiplayer: no save).
-  const MP_KINDS = new Set(['race', 'stretch', 'episode', 'duel', 'wrapped', 'championship', 'seasonEnd', 'strategy', 'us']);
+  const MP_KINDS = new Set(['race', 'stretch', 'episode', 'duel', 'wrapped', 'championship', 'seasonEnd', 'strategy', 'us', 'mpround', 'mptable', 'mph2h', 'mpgrid']);
+  const PLAYER_KINDS = new Set(['mpround', 'mptable', 'mph2h', 'mpdev', 'mpgrid']);
+  const hasPlayers = s => !!(s && s.players && s.players.length >= 2);
   function renderTabs() {
     const k = st.opt.kind, page = st.page || 'chapter';
     $('#tabs').innerHTML = '<button type="button" class="tab' + (page === 'chapter' ? ' on' : '') + '" data-page="chapter"' + (st.sel ? '' : ' disabled') + '>Chapter</button>' +
@@ -525,7 +533,7 @@
     if (!on) { sub.innerHTML = ''; return; }
     const mp = isMp(st.sel) && !st.hostMode;
     sub.innerHTML = '<div class="sgrid">' + GROUPS.map(([id, name, kinds]) => {
-      const ks = kinds.filter(([v]) => !mp || MP_KINDS.has(v)); if (!ks.length) return '';
+      const ks = kinds.filter(([v]) => (!mp || MP_KINDS.has(v)) && (!PLAYER_KINDS.has(v) || hasPlayers(st.summary))); if (!ks.length) return '';
       return '<div class="sgrp' + (id === 'story' ? ' lead' : '') + '"><span class="sg-name">' + esc(name) + '</span>' +
         ks.map(([v, l]) => '<button type="button" class="sub' + (v === k ? ' on' : '') + (v === 'episode' ? ' main' : '') + '" data-kind="' + v + '"' + (v === k ? ' aria-current="page"' : '') + '>' + esc(l) + '</button>').join('') + '</div>';
     }).join('') + '</div>';

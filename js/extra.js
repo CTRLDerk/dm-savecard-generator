@@ -3,12 +3,12 @@
    development race · season wrapped. Data from the save and the journal; text in EN/NL.
    Ratings are shown as words, never as numbers. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./save.js'), require('./views.js'), require('./text.js'));
-  else root.DMExtra = factory(root.DMSave, root.DMViews, root.DMText);
-})(typeof self !== 'undefined' ? self : this, function (S, V, T) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./save.js'), require('./views.js'), require('./text.js'), require('./mp.js'));
+  else root.DMExtra = factory(root.DMSave, root.DMViews, root.DMText, root.DMMp);
+})(typeof self !== 'undefined' ? self : this, function (S, V, T, MP) {
   'use strict';
   const num = S.num, short = S.shortName;
-  const KINDS = ['stretch', 'preview', 'transfer', 'duel', 'devrace', 'wrapped'];
+  const KINDS = ['stretch', 'preview', 'transfer', 'duel', 'devrace', 'wrapped', 'mpround', 'mptable', 'mph2h', 'mpdev', 'mpgrid'];
   const WORDS = { en: ['Poor', 'Shaky', 'Solid', 'Strong', 'World-class'], nl: ['Zwak', 'Wankel', 'Degelijk', 'Sterk', 'Wereldklasse'] };
   const rankWord = (rank, of) => { const x = of > 1 ? (rank - 1) / (of - 1) : 0; return x <= 0.1 ? 4 : x <= 0.3 ? 3 : x <= 0.6 ? 2 : x <= 0.85 ? 1 : 0; };
   const levelWord = l => (l == null ? null : l < 4 ? 0 : l < 5.5 ? 1 : l < 7 ? 2 : l < 8.5 ? 3 : 4);
@@ -224,6 +224,46 @@
       carRank: rankOf(all, 'now'), gainRank: rankOf(all, 'gain'), of: all.length, carWord: rankWord(rankOf(all, 'now'), all.length), gainWord: rankWord(rankOf(all, 'gain'), all.length) };
   }
 
+  // ------------------------------------------------------------ multiplayer: development, research, drivers and strategy of every player team
+  function mpdev(files, s) {
+    const P = s.players || []; if (P.length < 2) return { kind: 'mpdev', empty: true, season: s.season, category: s.category };
+    const teams = (files.teams && files.teams.teams) || [];
+    const idx = p => { if (!p) return null; let sum = 0, n = 0; for (const [k, , scale] of V.ATTRS) { const v = num(p[k]); if (v != null) { sum += v / scale; n++; } } return n ? +(sum / n * 100).toFixed(2) : null; };
+    const line = t => { const pts = (t.performanceHistory || []).filter(h => h.season == null || h.season === s.season).map(h => ({ week: num(h.week) || 0, v: idx(h.performance) })).filter(x => x.v != null);
+      const now = idx(t.performance); if (now != null) pts.push({ week: s.week || (pts.length ? pts[pts.length - 1].week + 1 : 1), v: now });
+      const m = new Map(); for (const x of pts.sort((a, b) => a.week - b.week)) m.set(x.week, x.v); return [...m].map(([week, v]) => ({ week, v })); };
+    const all = teams.map(t => ({ id: t.id, now: idx(t.performance) })).filter(x => x.now != null).sort((a, b) => b.now - a.now);
+    const rows = P.map(p => {
+      const t = teams.find(x => x.id === p.id) || {}, l = line(t), perf = t.performance || {};
+      const areas = V.ATTRS.map(([k, label, scale]) => ({ key: k, label, v: num(perf[k]) != null ? num(perf[k]) / scale * 10 : null })).filter(a => a.v != null).sort((a, b) => b.v - a.v);
+      const ups = (t.recentDevelopmentResults || []).filter(r => r.season == null || r.season === s.season);
+      const busy = (t.developmentSlots || []).filter(d => d.status === 'in_progress').map(d => ({ key: d.perfType, week: num(d.completionWeek || d.endWeek) }));
+      return { id: p.id, short: p.short, color: p.color, player: p.player, pos: p.pos, points: l, start: l.length ? l[0].v : null, now: l.length ? l[l.length - 1].v : null,
+        gain: l.length > 1 ? +(l[l.length - 1].v - l[0].v).toFixed(2) : 0, carRank: all.findIndex(x => x.id === p.id) + 1 || null,
+        ok: ups.filter(u => u.isSuccess).length, bad: ups.filter(u => !u.isSuccess).length, strong: areas[0] || null, weak: areas[areas.length - 1] || null, busy };
+    }).sort((a, b) => (b.now || 0) - (a.now || 0));
+    return { kind: 'mpdev', rows, of: all.length, season: s.season, week: s.week, category: s.category,
+      fastest: rows.slice().sort((a, b) => b.gain - a.gain)[0] || null, best: rows[0] || null };
+  }
+  function mpgrid(files, s) {
+    const P = s.players || []; if (P.length < 2) return { kind: 'mpgrid', empty: true, season: s.season, category: s.category };
+    const races = seasonRaces(files, s), last = races[races.length - 1] || null;
+    const rows = P.map(p => {
+      const ds = s.drivers.filter(d => d.teamId === p.id).sort((a, b) => (a.pos || 999) - (b.pos || 999)).slice(0, 3).map(d => ({ name: d.name, pos: d.pos, points: d.points }));
+      const cars = last ? last.cars.filter(c => c.teamId === p.id) : [], c = best(cars);
+      const stops = races.map(r => best(r.cars.filter(x => x.teamId === p.id))).filter(x => x && x.pitStops != null).map(x => x.pitStops);
+      return { id: p.id, short: p.short, color: p.color, player: p.player, pos: p.pos, drivers: ds,
+        last: c ? { pos: c.finished ? c.position : null, start: c.start, stops: c.pitStops, drivers: c.drivers } : null,
+        avgStops: stops.length ? +(stops.reduce((a, x) => a + x, 0) / stops.length).toFixed(1) : null };
+    }).sort((a, b) => (a.pos || 999) - (b.pos || 999));
+    const lr = rows.filter(r => r.last && r.last.stops != null);
+    const winner = lr.filter(r => r.last.pos != null).sort((a, b) => a.last.pos - b.last.pos)[0] || null;
+    const fewest = lr.slice().sort((a, b) => a.last.stops - b.last.stops)[0] || null, most = lr.slice().sort((a, b) => b.last.stops - a.last.stops)[0] || null;
+    const topDriver = rows.flatMap(r => r.drivers.map(d => Object.assign({ team: r.short, player: r.player, color: r.color }, d))).filter(d => d.pos != null).sort((a, b) => a.pos - b.pos)[0] || null;
+    return { kind: 'mpgrid', rows, round: last ? last.round : null, race: last ? last.name : null, season: s.season, category: s.category,
+      winner, split: fewest && most && fewest.last.stops !== most.last.stops ? { few: fewest, many: most } : null, topDriver };
+  }
+
   // ------------------------------------------------------------ 5. season wrapped (slides)
   function wrapped(files, s, journal) {
     const f = s.focus; if (!f) return null;
@@ -261,6 +301,9 @@
     if (kind === 'duel') return duel(files, s);
     if (kind === 'devrace') return devrace(files, s);
     if (kind === 'wrapped') return wrapped(files, s, journal);
+    if (MP && MP.KINDS.includes(kind)) return MP.view(kind, files, s, seasonRaces(files, s));
+    if (kind === 'mpdev') return mpdev(files, s);
+    if (kind === 'mpgrid') return mpgrid(files, s);
     return null;
   }
 
@@ -295,6 +338,7 @@
 
   function text(kind, v, opts) {
     opts = opts || {};
+    if (MP && (MP.KINDS.includes(kind) || kind === 'mpdev' || kind === 'mpgrid')) return T.tidy(MP.text(kind, v, opts));
     const lang = TX[opts.lang] ? opts.lang : 'en', t = TX[lang][kind], w = WORDS[lang];
     const n1 = x => { if (x == null) return '–'; const s = Number.isInteger(x) ? String(x) : (+x).toFixed(1); return lang === 'nl' ? s.replace('.', ',') : s; };
     const out = [];
@@ -370,5 +414,5 @@
     wrapped: 'Topic: a "Season Wrapped" year-in-review for this team, like Spotify Wrapped: one big fact per line (final position, races, wins, podiums, best moment, biggest climb, driver of the year, factory, the story in chapters). Personal and celebratory, honest about setbacks.'
   };
 
-  return { KINDS, SLIDES, WORDS, view, text, TOPIC, rankWord, levelWord, preview, transfer, duel, devrace, wrapped };
+  return { KINDS, SLIDES, WORDS, view, text, seasonRaces, TOPIC, rankWord, levelWord, preview, transfer, duel, devrace, wrapped };
 });
