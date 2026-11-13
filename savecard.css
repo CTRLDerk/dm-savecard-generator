@@ -238,17 +238,21 @@ code{background:var(--asphalt);padding:1px 4px}
 .hlp-part table{border-collapse:collapse;width:100%}.hlp-part td{padding:5px 10px 5px 0;border-bottom:1px solid var(--line);vertical-align:top}
 .hlp-part code{background:var(--row);padding:0 4px}
 .hlp-part li{margin:4px 0}
-/* under Chapter: every card type, grouped by when you post it (Story first) */
-.subtabs{display:flex;flex-wrap:wrap;align-items:center;gap:8px 22px;padding:10px 32px;background:var(--pit);border-bottom:1px solid var(--line)}
+/* under Chapter: every card type in four columns (Story · Race weekend · Team · Season), label above, aligned with the page */
+.subtabs{background:var(--pit);border-bottom:1px solid var(--line)}
 .subtabs[hidden]{display:none}
-.subtabs .sgrp{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
-.subtabs .sgrp + .sgrp{padding-left:22px;border-left:1px solid var(--line)}
-.subtabs .sg-name{font:italic 800 12px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-right:6px}
+.subtabs .sgrid{display:grid;grid-template-columns:repeat(4,auto);justify-content:start;max-width:1600px;margin:0 auto;padding:0 32px}
+.subtabs .sgrp{display:flex;flex-wrap:nowrap;align-items:center;gap:2px;padding:9px 20px 11px;position:relative;padding-top:30px}
+.subtabs .sgrp:first-child{padding-left:0}
+.subtabs .sgrp + .sgrp{border-left:1px solid var(--line)}
+.subtabs .sg-name{position:absolute;top:10px;left:30px;font:italic 800 12px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.subtabs .sgrp:first-child .sg-name{left:10px}
 .subtabs .sgrp.lead .sg-name{color:var(--red)}
-.subtabs .sub{padding:6px 11px;border:1px solid transparent;background:none;color:var(--muted);font:700 14px var(--cond);letter-spacing:.03em;text-transform:uppercase;cursor:pointer}
+.subtabs .sub{padding:5px 10px;border:1px solid transparent;background:none;color:var(--muted);font:700 15px var(--cond);letter-spacing:.03em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
 .subtabs .sub:hover{color:var(--chrome);border-color:var(--line)}
 .subtabs .sub.main{color:var(--chrome);border-color:var(--line);background:var(--row)}
 .subtabs .sub.on{color:var(--chrome);border-color:var(--red);background:var(--raised);box-shadow:inset 0 -3px 0 var(--red)}
+@media (max-width:1180px){.subtabs .sgrid{grid-template-columns:repeat(2,auto)}.subtabs .sgrp:nth-child(3){border-left:0;padding-left:0}.subtabs .sgrp:nth-child(3) .sg-name{left:10px}.subtabs .sgrp:nth-child(n+3){border-top:1px solid var(--line)}}
 .count-pill{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--row);color:var(--muted);font:600 11px/18px inherit;font-style:normal;text-align:center}
 .mplist{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin:10px 0 4px}
 .note.mpnote{margin:-6px 0 14px}

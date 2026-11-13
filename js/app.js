@@ -485,10 +485,10 @@
   // Top bar: Chapter leads (the playthrough), every card type sits underneath it, grouped by when you post it.
   // Multiplayer has its own tab: seasons, recaps, players, host save.
   const GROUPS = [
-    ['story', 'Story', [['episode', 'Chapter'], ['stretch', 'Race summary']]],
-    ['weekend', 'Race weekend', [['preview', 'Preview'], ['race', 'Race result'], ['strategy', 'Race strategy'], ['us', 'NASCAR recap']]],
-    ['team', 'Team', [['duel', 'Teammate duel'], ['devrace', 'Development'], ['rnd', 'R&D update'], ['transfer', 'Contracts'], ['paddock', 'Paddock news']]],
-    ['season', 'Season', [['seasonStart', 'Season preview'], ['championship', 'Championship'], ['seasonEnd', 'Season review'], ['wrapped', 'Wrapped']]]
+    ['story', 'Story', [['episode', 'Chapter'], ['stretch', 'Summary']]],
+    ['weekend', 'Race weekend', [['preview', 'Preview'], ['race', 'Result'], ['strategy', 'Strategy'], ['us', 'NASCAR recap']]],
+    ['team', 'Team', [['duel', 'Duel'], ['devrace', 'Development'], ['rnd', 'R&D'], ['transfer', 'Contracts'], ['paddock', 'Paddock']]],
+    ['season', 'Season', [['seasonStart', 'Preview'], ['championship', 'Standings'], ['seasonEnd', 'Review'], ['wrapped', 'Wrapped']]]
   ];
   // Post types that work on race recaps alone (multiplayer: no save).
   const MP_KINDS = new Set(['race', 'stretch', 'episode', 'duel', 'wrapped', 'championship', 'seasonEnd', 'strategy', 'us']);
@@ -501,11 +501,11 @@
     sub.hidden = !on;
     if (!on) { sub.innerHTML = ''; return; }
     const mp = isMp(st.sel) && !st.hostMode;
-    sub.innerHTML = GROUPS.map(([id, name, kinds]) => {
+    sub.innerHTML = '<div class="sgrid">' + GROUPS.map(([id, name, kinds]) => {
       const ks = kinds.filter(([v]) => !mp || MP_KINDS.has(v)); if (!ks.length) return '';
       return '<div class="sgrp' + (id === 'story' ? ' lead' : '') + '"><span class="sg-name">' + esc(name) + '</span>' +
         ks.map(([v, l]) => '<button type="button" class="sub' + (v === k ? ' on' : '') + (v === 'episode' ? ' main' : '') + '" data-kind="' + v + '"' + (v === k ? ' aria-current="page"' : '') + '>' + esc(l) + '</button>').join('') + '</div>';
-    }).join('');
+    }).join('') + '</div>';
   }
   // Chapter page = the composer for the open save or season; Multiplayer page = manage seasons.
   async function showPage(page) {

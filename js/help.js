@@ -21,10 +21,10 @@
 <p>Save in the game and the card follows (Chrome/Edge or <code>start.bat</code>).</p>`],
         ['types', 'Post types', `
 <p>The bar at the top groups the post types by when you post them. Pick a group, then a type in the row underneath.</p>
-<table><tr><td><b>Race weekend</b></td><td>Preview (the coming race) · Race result · Race strategy · NASCAR recap</td></tr>
-<tr><td><b>Story</b></td><td>Chapter (your playthrough) · Race summary (a run of races, from–to)</td></tr>
-<tr><td><b>Team</b></td><td>Teammate duel · Development · R&amp;D update · Contracts · Paddock news</td></tr>
-<tr><td><b>Season</b></td><td>Season preview · Championship · Season review · Wrapped (six slides)</td></tr></table>
+<table><tr><td><b>Race weekend</b></td><td>Preview (the coming race) · Result · Strategy · NASCAR recap</td></tr>
+<tr><td><b>Story</b></td><td>Chapter (your playthrough) · Summary (a run of races, from–to)</td></tr>
+<tr><td><b>Team</b></td><td>Duel (teammates) · Development · R&amp;D · Contracts · Paddock</td></tr>
+<tr><td><b>Season</b></td><td>Preview · Standings · Review · Wrapped (six slides)</td></tr></table>
 <p>A group opens on the type you used last. The settings bar only shows what the chosen type can do.</p>`],
         ['text', 'Text', `
 <ul><li><b>Source</b>: a ready-made text (<b>New wording</b> gives another version) or <b>Write with AI (chat)</b>: the facts go to a Claude chat, you paste the answer back.</li>
@@ -76,10 +76,10 @@
 <p>Sla je op in de game, dan werkt de kaart mee (Chrome/Edge of <code>start.bat</code>).</p>`],
         ['types', 'Posttypes', `
 <p>De balk bovenaan groepeert de posttypes naar wanneer je ze post. Kies een groep, daarna een type in de rij eronder.</p>
-<table><tr><td><b>Race weekend</b></td><td>Preview (de komende race) · Race result · Race strategy · NASCAR recap</td></tr>
-<tr><td><b>Story</b></td><td>Chapter (je playthrough) · Race summary (een reeks races, van–tot)</td></tr>
-<tr><td><b>Team</b></td><td>Teammate duel · Development · R&amp;D update · Contracts · Paddock news</td></tr>
-<tr><td><b>Season</b></td><td>Season preview · Championship · Season review · Wrapped (zes slides)</td></tr></table>
+<table><tr><td><b>Race weekend</b></td><td>Preview (de komende race) · Result · Strategy · NASCAR recap</td></tr>
+<tr><td><b>Story</b></td><td>Chapter (je playthrough) · Summary (een reeks races, van–tot)</td></tr>
+<tr><td><b>Team</b></td><td>Duel (teammates) · Development · R&amp;D · Contracts · Paddock</td></tr>
+<tr><td><b>Season</b></td><td>Preview · Standings · Review · Wrapped (zes slides)</td></tr></table>
 <p>Een groep opent op het type dat je het laatst gebruikte. De instellingenbalk toont alleen wat het gekozen type kan.</p>`],
         ['text', 'Tekst', `
 <ul><li><b>Source</b>: een kant-en-klare tekst (<b>New wording</b> geeft een andere versie) of <b>Write with AI (chat)</b>: de feiten gaan naar een Claude-chat, jij plakt het antwoord terug.</li>
