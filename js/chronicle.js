@@ -304,5 +304,16 @@
     return entry;
   }
 
-  return { VERSION, snapshot, diff, update, create, restart, eventsSince, addChapter, identity };
+  // Remove one chapter (by its save time) and number the rest again 1, 2, 3 … in their order; the prologue stays 0.
+  function removeChapter(journal, at, no) {
+    const i = journal.chapters.findIndex(c => (c.at || '') === (at || '') && (no == null || String(c.no) === String(no)));
+    if (i < 0) return null;
+    const [gone] = journal.chapters.splice(i, 1);
+    let n = 0;
+    journal.chapters.slice().sort((a, b) => a.no - b.no || String(a.at).localeCompare(String(b.at))).forEach(c => { if (c.kind === 'prologue') c.no = 0; else c.no = ++n; });
+    journal.chapters.sort((a, b) => a.no - b.no);
+    return gone;
+  }
+
+  return { VERSION, snapshot, diff, update, create, restart, eventsSince, addChapter, removeChapter, identity };
 });

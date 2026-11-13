@@ -787,7 +787,7 @@
     const premise = S ? '<p class="note"><b>' + esc(S.name || 'Playthrough') + '</b>' + (S.goal && S.goal.type ? ' · goal: ' + esc(Ep.goalText(S.goal, st.opt.lang)) : '') +
       (S.focus && S.focus.length ? ' · following ' + esc(S.focus.join(', ')) : '') + (S.rules ? ' · rules: ' + esc(S.rules) : '') + ' · since ' + esc(S.startSeason) + (S.startRound ? ' R' + esc(S.startRound) : '') + '</p>'
       : '<p class="note">No playthrough premise yet. The journal follows this save anyway; start a playthrough to give it a name, a goal and drivers to follow.</p>';
-    const chapters = J.chapters.slice().sort((a, b) => b.no - a.no).slice(0, 12).map(c => '<li><b>' + (c.kind === 'prologue' ? '0' : esc(c.no)) + '</b><span>' + esc(c.title || '') + ' · ' + esc([c.season, c.round ? 'R' + c.round : null].filter(Boolean).join(' ')) + '</span></li>').join('');
+    const chapters = J.chapters.slice().sort((a, b) => b.no - a.no).map(c => '<li><b>' + (c.kind === 'prologue' ? '0' : esc(c.no)) + '</b><span>' + esc(c.title || '') + ' · ' + esc([c.season, c.round ? 'R' + c.round : null, c.sourceName].filter(Boolean).join(' · ')) + '</span>' + '<button type="button" class="delch" data-act="delch" data-at="' + esc(c.at || '') + '" data-no="' + esc(c.no) + '" title="Remove this chapter; the others are numbered again" aria-label="Remove chapter ' + esc(c.no) + '">×</button>' + '</li>').join('');
     const people = (J.last && J.last.people || []).filter(p => p.role === 'driver');
     const G = (S && S.goal) || {};
     const form = st.ptForm ? '<form class="ptform" id="ptform">' +
@@ -911,8 +911,8 @@
     const same = J.chapters.find(c => c.season === L.season && c.round === L.round && (c.kind || 'chapter') === 'chapter' && c.source === src);
     const nextNo = same ? same.no : (J.chapters.length ? J.chapters[J.chapters.length - 1].no + 1 : 1);
     const S = J.series;
-    const list = J.chapters.slice().sort((a, b) => b.no - a.no).slice(0, 5).map(c => '<li><b>' + (c.kind === 'prologue' ? '0' : esc(c.no)) + '</b><span>' + esc(c.title || '') + ' · ' +
-      esc([c.season, c.round ? 'R' + c.round : null, c.sourceName].filter(Boolean).join(' · ')) + '</span></li>').join('');
+    const list = J.chapters.slice().sort((a, b) => b.no - a.no).map(c => '<li><b>' + (c.kind === 'prologue' ? '0' : esc(c.no)) + '</b><span>' + esc(c.title || '') + ' · ' +
+      esc([c.season, c.round ? 'R' + c.round : null, c.sourceName].filter(Boolean).join(' · ')) + '</span>' + '<button type="button" class="delch" data-act="delch" data-at="' + esc(c.at || '') + '" data-no="' + esc(c.no) + '" title="Remove this chapter; the others are numbered again" aria-label="Remove chapter ' + esc(c.no) + '">×</button>' + '</li>').join('');
     box.innerHTML = sec('Playthrough') +
       (S && S.name ? '<p class="note"><b>' + esc(S.name) + '</b>' + (S.goal && S.goal.type ? ' · goal: ' + esc(Ep.goalText(S.goal, o.lang)) : '') + '</p>' : '') +
       '<div class="story-grid"><div><h3>This post</h3>' +
@@ -1148,6 +1148,14 @@
     const act = b.dataset.act;
     if (act === 'cfd') { await cfdNext(); return; }
     if (act === 'savepost') { await savePostChapter(); return; }
+    if (act === 'delch') {
+      if (!confirmDel(b)) return;
+      const gone = Ch.removeChapter(st.journal, b.dataset.at, b.dataset.no); if (!gone) return;
+      await saveJournal();
+      if (st.opt.kind === 'episode') { st.dirty = false; await updateEpisode(); } else renderPtBar();
+      note(st.opt.kind === 'episode' ? '#stnote' : '#ptnote', 'Removed “' + (gone.title || 'chapter') + '”. The other chapters are numbered again.', 'ok');
+      return;
+    }
     if (act === 'tochapter') { chooseKind('episode'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (act === 'mpnew') { newLeagueForm(); return; }
     if (act === 'tochapter2') { showPage('chapter'); return; }
