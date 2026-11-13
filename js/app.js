@@ -380,10 +380,18 @@
     // Multiplayer seasons have their own tab; the column lists the save slots only.
     html += '<button type="button" class="btn mpadd" data-act="mppage">Multiplayer seasons' + (st.leagues.length ? ' (' + st.leagues.length + ')' : '') + ' →</button>';
     // In the browser everything (seasons, journals, notes) lives in this browser: a backup file keeps it safe.
-    if (st.source === 'local') html += '<div class="bk"><button type="button" class="btn" data-act="backup">Backup</button><button type="button" class="btn" data-act="restore">Restore</button><input type="file" id="bkfile" accept=".json,application/json" hidden></div><p class="note" id="bknote">Seasons, stories and notes are kept in this browser.</p>';
+    if (st.source === 'local') html += '<div class="bk"><button type="button" class="btn" data-act="backup">Backup</button><button type="button" class="btn" data-act="restore">Restore</button><input type="file" id="bkfile" accept=".json,application/json" hidden></div><p class="note" id="bknote">Seasons, stories and notes are kept in this browser.</p>' +
+      '<div class="bk"><button type="button" class="btn" data-act="imgdir">' + (st.imgIndex ? 'Add a folder with images' : 'Faces and logos…') + '</button>' +
+      '<input type="file" id="imgdir" webkitdirectory multiple hidden></div><p class="note" id="imgdirnote">' + (st.imgIndex ? 'Images found: ' + [...st.imgIndex.values()].reduce((a, l) => a + l.length, 0) + '.' : 'Choose the Delta Manager game folder (and a mod’s workshop folder) once for faces and team logos. Nothing is uploaded.') + '</p>';
     $('#slots').innerHTML = html;
   }
   $('#slots').addEventListener('change', async e => {
+    if (e.target.id === 'imgdir') {
+      const n = indexFiles(e.target.files || []); e.target.value = '';
+      if (!n) { note('#imgdirnote', 'No images in that folder. Choose the Delta Manager game folder or a mod’s workshop folder.', 'err'); return; }
+      st.logoKey = null; renderSlots(); note('#imgdirnote', n + ' images found. Faces and logos are kept in this browser from now on.', 'ok');
+      if (st.sel) await update(); return;
+    }
     if (e.target.id !== 'bkfile' || !e.target.files[0]) return;
     let data; try { data = JSON.parse(await e.target.files[0].text()); } catch (err) { data = null; }
     e.target.value = '';
@@ -401,6 +409,7 @@
       setTimeout(() => URL.revokeObjectURL(url), 2000); note('#bknote', 'Backup saved (' + Object.keys(data).length + ' items, without the webhook).', 'ok'); return;
     }
     if (e.target.closest('[data-act=restore]')) return $('#bkfile').click();
+    if (e.target.closest('[data-act=imgdir]')) return $('#imgdir').click();
     if (e.target.closest('[data-act=mpnew]')) return newLeagueForm(); const b = e.target.closest('.srow'); if (b) { st.page = 'chapter'; store.set('page', 'chapter'); select(b.dataset.id).then(renderTabs); } });
 
   async function poll() {
@@ -1018,35 +1027,61 @@
   }
 
 
-  // Faces and logos named in the save (paths into the game's resources folder), via the local server.
+  // ------------------------------------------------------------ faces and logos
+  // The save names them as paths into the game (or a mod's workshop) folder. With the server they come from api/image.
+  // In the browser the player picks the game folder once; every image used is then kept in this browser (IndexedDB),
+  // so the cards keep their faces and logos on the next visit without picking again.
+  const pathKey = p => String(p || '').replace(/\\/g, '/').toLowerCase().split('/').filter(x => x && x !== '.');
+  function indexFiles(files) {
+    const idx = st.imgIndex || (st.imgIndex = new Map()); let n = 0;
+    for (const f of files) {
+      if (!/\.(png|jpe?g|webp|gif)$/i.test(f.name)) continue;
+      const k = f.name.toLowerCase(); if (!idx.has(k)) idx.set(k, []); idx.get(k).push(f); n++;
+    }
+    return n;
+  }
+  // The file whose path ends in the most of the same folders as the path in the save.
+  function findFile(path) {
+    const want = pathKey(path), list = st.imgIndex && st.imgIndex.get(want[want.length - 1]);
+    if (!list) return null;
+    let best = null, score = -1;
+    for (const f of list) {
+      const have = pathKey(f.webkitRelativePath || f.name); let k = 0;
+      while (k < want.length && k < have.length && want[want.length - 1 - k] === have[have.length - 1 - k]) k++;
+      if (k > score) { score = k; best = f; }
+    }
+    return best;
+  }
+  function imageFrom(src) {
+    return new Promise(resolve => { const im = new Image(); let done = false; const fin = ok => { if (done) return; done = true; resolve(ok ? im : null); };
+      im.onload = () => fin(true); im.onerror = () => fin(false); setTimeout(() => fin(false), 3000); im.src = src; });
+  }
+  async function fetchImage(path) {
+    if (!path) return null;
+    if (st.source === 'server') return imageFrom('api/image?path=' + encodeURIComponent(path));
+    const key = 'img:' + pathKey(path).join('/');
+    let blob = null; try { blob = await idb.get(key); } catch (e) { blob = null; }
+    if (!blob) { const f = findFile(path); if (f) { blob = f; try { await idb.set(key, new Blob([await f.arrayBuffer()], { type: f.type || 'image/png' })); } catch (e) { /* not kept */ } } }
+    return blob ? imageFrom(URL.createObjectURL(blob)) : null;
+  }
+
   function loadImages(view) {
-    if (st.source !== 'server' || !view) return Promise.resolve();
+    if (!view) return Promise.resolve();
     const want = new Set();
     (function walk(o, depth) { if (!o || depth > 4) return; if (Array.isArray(o)) { o.slice(0, 40).forEach(x => walk(x, depth + 1)); return; }
       if (typeof o === 'object') for (const [k, v] of Object.entries(o)) { if ((k === 'face' || k === 'logo' || k === 'image') && typeof v === 'string' && v) want.add(v); else if (v && typeof v === 'object') walk(v, depth + 1); } })(view, 0);
-    const todo = [...want].filter(p => !st.images.has(p)).slice(0, 60);
-    return Promise.all(todo.map(p => new Promise(resolve => {
-      const im = new Image(); let done = false;
-      const fin = ok => { if (done) return; done = true; st.images.set(p, ok ? im : null); resolve(); };
-      im.onload = () => fin(true); im.onerror = () => fin(false); setTimeout(() => fin(false), 3000);
-      im.src = 'api/image?path=' + encodeURIComponent(p);
-    })));
+    const todo = [...want].filter(p => !st.images.has(p) || (st.images.get(p) == null && st.imgIndex)).slice(0, 60);
+    return Promise.all(todo.map(async p => { const im = await fetchImage(p); if (im || !st.images.has(p)) st.images.set(p, im); }));
   }
 
   function loadLogo() {
     const f = st.summary && st.summary.focus;
     const meta = st.files && st.files.meta;
-    const path = st.source === 'server' && f ? (f.logo || (f.role === 'player' && meta && meta.teamLogo) || '') : '';
-    if (path === st.logoKey) return Promise.resolve();
+    const path = f ? (f.logo || (f.role === 'player' && meta && meta.teamLogo) || '') : '';
+    if (path === st.logoKey && (st.logo || !st.imgIndex)) return Promise.resolve();
     st.logoKey = path; st.logo = null;
     if (!path) return Promise.resolve();
-    return new Promise(resolve => {
-      const img = new Image();
-      const done = ok => { st.logo = ok ? img : null; resolve(); };
-      img.onload = () => done(true); img.onerror = () => done(false);
-      setTimeout(() => done(false), 3000);
-      img.src = 'api/image?path=' + encodeURIComponent(path);
-    });
+    return fetchImage(path).then(im => { st.logo = im; });
   }
 
   // ------------------------------------------------------------ options + actions

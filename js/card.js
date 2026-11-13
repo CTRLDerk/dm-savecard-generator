@@ -272,9 +272,8 @@
     const isMe = r => (drivers ? f && f.drivers.some(d => d.name === r.name) : f && r.id === f.id);
     const isPartner = r => !drivers && s.partners.some(p => p.id === r.id);
     const isPlayer = r => !isMe(r) && (s.players || []).some(p => p.id === (drivers ? r.teamId : r.id));
-    let rows = list.slice(0, maxRows);
     const meIdx = list.findIndex(isMe);
-    if (meIdx >= maxRows) rows = rows.slice(0, maxRows - 1).concat([list[meIdx]]);
+    const rows = T.standingsRows(list.length, meIdx, maxRows).map(i => list[i]);
     const dec = list.some(r => !Number.isInteger(r.points));
     rows.forEach((r, i) => {
       const ry = y + i * rowH;

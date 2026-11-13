@@ -292,8 +292,10 @@
     // Open questions
     const qx = 48, qw = 620;
     label(ctx, t.open, qx, 206, C.bgMuted);
-    const qs = p.threads.slice(0, 3);
-    if (ep.series && ep.series.goalLine) qs.unshift({ text: ep.series.goalLine, tone: 'gold', data: {} });
+    // Every question once: the series goal and a goal thread often say the same thing.
+    const seen = new Set(), norm = x => String(x || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const qs = (ep.series && ep.series.goalLine ? [{ key: 'goal', text: ep.series.goalLine, tone: 'gold', data: {} }] : []).concat(p.threads)
+      .filter(q => { const k = norm(q.text); if (!k || seen.has(k) || (q.key === 'goal' && seen.has('#goal'))) return false; seen.add(k); if (q.key === 'goal') seen.add('#goal'); return true; });
     let qy = 220;
     for (const q of qs.slice(0, 3)) {
       panel(ctx, qx, qy, qw, 104);

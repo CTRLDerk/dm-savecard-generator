@@ -11,7 +11,7 @@
     en: { raceweek: 'Raceweek', round: 'Round', week: 'week', laps: 'laps', sprint: 'sprint weekend', standing: 'Championship', form: 'Form', here: 'Last time here', first: 'First visit in this playthrough',
       car: 'Our car', strong: 'Strongest', weak: 'Weakest', ask: 'Where do we finish?', opts: ['Podium', 'Points', 'No points'], ahead: 'to', behind: 'over', target: 'Board target', pts: 'pts',
       hwg: 'Here we go!', stays: 'Here we go!', bye: 'Goodbye', expiring: 'Contract watch', contract: 'Contract', done: 'Done deal', role: 'Role', until: 'Contract until', age: 'Age', level: 'Level', potential: 'Potential', career: 'Career', wins: 'wins', titles: 'titles', roles: { driver: 'Race driver', reserve: 'Reserve' },
-      duel: 'Teammate duel', races: 'Races', quali: 'Qualifying', points: 'Points', best: 'Best result', avg: 'Average finish', dnf: 'DNFs', gained: 'Places gained', perRace: 'Race by race', same: 'Our drivers share one car: no duel.',
+      duel: 'Teammate duel', races: 'Races', quali: 'Qualifying', points: 'Points', best: 'Best result', avg: 'Average finish', dnf: 'DNFs', gained: 'Places gained', perRace: 'Race by race', same: 'Our drivers share one car: no duel.', single: 'Only {D} raced for us this season: no duel yet.',
       dev: 'Development race', index: 'Car index (all areas)', carNow: 'Car now', devSeason: 'Development this season', of: 'of', upOk: 'upgrade', upBad: 'failed upgrade', more: 'gained more', less: 'gained less',
       words: X.WORDS.en, wrapped: 'Wrapped', season: 'Season', final: 'Final standings', now: 'So far', numbers: 'The numbers', racesN: 'races', winN: 'win', winsN: 'wins', podN: 'podiums', ptsN: 'in the points',
       inShort: 'In short', perRound: 'Championship per round', rounds: 'Rounds', racesL: 'races', placesUp: 'places up', placesDown: 'places down', steady: 'same place', avgShort: 'avg', dnfShort: 'DNF', allRaces: 'Every race', worth: 'Worth telling', quiet: 'No race stood out.', noRaces: 'No races run yet this season.',
@@ -20,7 +20,7 @@
     nl: { raceweek: 'Raceweek', round: 'Ronde', week: 'week', laps: 'ronden', sprint: 'sprintweekend', standing: 'Kampioenschap', form: 'Vorm', here: 'Vorige keer hier', first: 'Eerste bezoek in deze playthrough',
       car: 'Onze auto', strong: 'Sterkste', weak: 'Zwakste', ask: 'Waar eindigen we?', opts: ['Podium', 'Punten', 'Geen punten'], ahead: 'naar', behind: 'op', target: 'Doel bestuur', pts: 'ptn',
       hwg: 'Here we go!', stays: 'Here we go!', bye: 'Vaarwel', expiring: 'Contract loopt af', contract: 'Contract', done: 'Deal rond', role: 'Rol', until: 'Contract tot', age: 'Leeftijd', level: 'Niveau', potential: 'Potentieel', career: 'Carrière', wins: 'zeges', titles: 'titels', roles: { driver: 'Racecoureur', reserve: 'Reserve' },
-      duel: 'Teamgenotenduel', races: 'Races', quali: 'Kwalificatie', points: 'Punten', best: 'Beste resultaat', avg: 'Gemiddelde finish', dnf: 'Uitvallers', gained: 'Plekken gewonnen', perRace: 'Per race', same: 'Onze coureurs delen één auto: geen duel.',
+      duel: 'Teamgenotenduel', races: 'Races', quali: 'Kwalificatie', points: 'Punten', best: 'Beste resultaat', avg: 'Gemiddelde finish', dnf: 'Uitvallers', gained: 'Plekken gewonnen', perRace: 'Per race', same: 'Onze coureurs delen één auto: geen duel.', single: 'Alleen {D} reed dit seizoen voor ons: nog geen duel.',
       dev: 'Ontwikkelingsrace', index: 'Auto-index (alle gebieden)', carNow: 'Auto nu', devSeason: 'Ontwikkeling dit seizoen', of: 'van', upOk: 'upgrade', upBad: 'mislukte upgrade', more: 'meer ontwikkeld', less: 'minder ontwikkeld',
       words: X.WORDS.nl, wrapped: 'Wrapped', season: 'Seizoen', final: 'Eindstand', now: 'Tot nu toe', numbers: 'De cijfers', racesN: 'races', winN: 'zege', winsN: 'zeges', podN: 'podiums', ptsN: 'in de punten',
       inShort: 'In het kort', perRound: 'Kampioenschap per ronde', rounds: 'Ronde', racesL: 'races', placesUp: 'plekken omhoog', placesDown: 'plekken omlaag', steady: 'zelfde plek', avgShort: 'gem.', dnfShort: 'DNF', allRaces: 'Alle races', worth: 'Het vertellen waard', quiet: 'Geen race sprong eruit.', noRaces: 'Nog geen races gereden dit seizoen.',
@@ -156,7 +156,7 @@
   function duel(canvas, s, v, opts) {
     const lang = lg(opts), t = L[lang], ctx = frame(canvas, opts.scale || 2, v && v.color);
     kicker(ctx, t.duel, [(v.category || '') + ' ' + v.season, v.team].filter(Boolean).join('  ·  '));
-    if (!v || v.empty || v.sameCar) { ctx.font = F(600, 22); ctx.fillStyle = C.bgMuted; ctx.fillText(v && v.sameCar ? t.same : '–', 48, 160); footer(ctx, v ? v.team : ''); return canvas; }
+    if (!v || v.empty || v.sameCar) { ctx.font = F(600, 22); ctx.fillStyle = C.bgMuted; ctx.fillText(v && v.sameCar ? t.same : v && v.single ? t.single.replace('{D}', v.single) : '–', 48, 160); footer(ctx, v ? v.team : ''); return canvas; }
     const A = v.a, B = v.b, ca = v.color || C.red, cb = C.bgText;
     face(ctx, imgOf(opts, A.face), A.name, ca, 130, 168, 66);
     face(ctx, imgOf(opts, B.face), B.name, '#5A4F44', W - 130, 168, 66);

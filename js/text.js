@@ -38,6 +38,16 @@
   const fmtPts = p => (p == null ? '–' : Number.isInteger(p) ? String(p) : p.toFixed(1));
   const fmtGap = g => (g == null ? '' : (Number.isInteger(g) ? String(g) : g.toFixed(1)));
   const fmtMoney = m => (m == null ? '–' : (Math.abs(m) >= 100 ? m.toFixed(0) : m.toFixed(1)) + 'M');
+  // Standings rows to show when space is short: the top 3, then the team above us, us and the team below us.
+  // Returns indexes into the list; a jump in the indexes means rows were skipped.
+  function standingsRows(n, me, max) {
+    max = Math.max(3, max);
+    if (n <= max) return [...Array(n).keys()];
+    if (me < 0 || me < max - 1) return [...Array(max).keys()];
+    const win = [me - 1, me, me + 1].filter(i => i >= 0 && i < n);
+    const top = Math.max(1, Math.min(3, max - win.length));
+    return [...new Set([...Array(top).keys(), ...win])].slice(0, Math.max(max, top + 2));
+  }
   const posLabel = (pos, tied) => (pos == null ? '–' : 'P' + pos + (tied ? '=' : ''));
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   function fmtDate(iso, lang) {
@@ -131,9 +141,9 @@
     if (list.length && !s.preseason) {
       const mark = id => (opts.table === 'drivers' ? (f.drivers.some(d => d.name === id) ? ' ◀' : '') : id === f.id ? ' ◀' : s.partners.some(p => p.id === id) ? ' ◁' : '');
       const key = r => (opts.table === 'drivers' ? r.name : r.id);
-      let rows = list.slice(0, n);
       const meIdx = list.findIndex(r => (opts.table === 'drivers' ? f.drivers.some(d => d.name === r.name) : r.id === f.id));
-      if (meIdx >= n) rows = rows.slice(0, n - 1).concat([null, list[meIdx]]);
+      const rows = [];
+      standingsRows(list.length, meIdx, n).forEach((i, k, a) => { if (k && i - a[k - 1] > 1) rows.push(null); rows.push(list[i]); });
       const w = 26;
       const dec = list.some(r => !Number.isInteger(r.points));
       const pts = p => (dec ? p.toFixed(1) : String(p));
@@ -159,5 +169,5 @@
     return text.slice(0, 2000);
   }
 
-  return { LABELS, L, discord, cut, fmtPts, fmtGap, fmtMoney, fmtDate, posLabel, gapLine, targetState, headerLine, surname };
+  return { LABELS, L, discord, cut, fmtPts, fmtGap, fmtMoney, fmtDate, posLabel, standingsRows, gapLine, targetState, headerLine, surname };
 });

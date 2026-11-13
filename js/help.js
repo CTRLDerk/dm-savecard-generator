@@ -51,6 +51,12 @@
 <li><b>Players</b>: one line per player, <code>* @discordname - Team name</code>. <b>Save as .txt</b> to read it back next season.</li>
 <li><b>Player teams</b>: tick who drove in which round.</li></ol>
 <p>Are you the host? Choose your save at <b>I am host</b>: then every card uses the save, and <b>Fill from save</b> lists the other human teams.</p>`],
+        ['images', 'Faces and logos', `
+<p>Faces and team logos are in the game folder, not in the save. On the site:</p>
+<ol><li>Press <b>Faces and logos…</b> under the save list.</li>
+<li>Choose <code>steamapps/common/Delta Manager</code>. For a mod: press again and choose its folder in <code>steamapps/workshop/content</code>.</li>
+<li>Chrome asks to "upload" the files: nothing leaves your PC.</li></ol>
+<p>Every image a card uses is kept in this browser, so you only do this once (again after new drivers or a new mod).</p>`],
         ['backup', 'Backup', `
 <p>On the site everything you make (seasons, stories, notes) is kept in <b>this browser</b>.</p>
 <ul><li><b>Backup</b> (left column) saves it as one .json file. <b>Restore</b> puts it back, also on another PC.</li>
@@ -106,6 +112,12 @@
 <li><b>Players</b>: één regel per speler, <code>* @discordnaam - Teamnaam</code>. <b>Save as .txt</b> om hem volgend seizoen weer in te lezen.</li>
 <li><b>Player teams</b>: vink aan wie in welke ronde meereed.</li></ol>
 <p>Ben jij de host? Kies je save bij <b>I am host</b>: dan gebruiken alle kaarten de save, en <b>Fill from save</b> zet de andere menselijke teams klaar.</p>`],
+        ['images', 'Gezichten en logo’s', `
+<p>Gezichten en teamlogo’s staan in de gamemap, niet in de save. Op de site:</p>
+<ol><li>Klik <b>Faces and logos…</b> onder de lijst met saves.</li>
+<li>Kies <code>steamapps/common/Delta Manager</code>. Voor een mod: klik nog eens en kies de map in <code>steamapps/workshop/content</code>.</li>
+<li>Chrome vraagt om de bestanden te "uploaden": er gaat niets van je pc af.</li></ol>
+<p>Elk plaatje dat een kaart gebruikt blijft in deze browser bewaard, dus dit doe je één keer (opnieuw na nieuwe coureurs of een nieuwe mod).</p>`],
         ['backup', 'Back-up', `
 <p>Op de site staat alles wat je maakt (seizoenen, verhalen, notities) in <b>deze browser</b>.</p>
 <ul><li><b>Backup</b> (linkerkolom) bewaart het als één .json-bestand. <b>Restore</b> zet het terug, ook op een andere pc.</li>

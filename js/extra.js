@@ -138,12 +138,12 @@
   function duel(files, s) {
     const f = s.focus; if (!f) return null;
     const races = seasonRaces(files, s);
-    const ids = new Map();
-    for (const r of races) for (const x of r.raw.results || []) if (x.teamId === f.id) ids.set(x.driverId, x.driverName);
-    const ranked = s.drivers.filter(d => d.teamId === f.id).sort((a, b) => (a.pos || 99) - (b.pos || 99));
-    let pair = ranked.slice(0, 2).map(d => d.id);
-    if (pair.length < 2) pair = [...ids.keys()].slice(0, 2);
-    if (pair.length < 2) return { kind: 'duel', empty: true, team: f.short, color: f.color, season: s.season };
+    // The two drivers who raced most for us this season (a reserve or a driver who never started is no duel).
+    const ids = new Map(), starts = new Map();
+    for (const r of races) for (const x of r.raw.results || []) if (x.teamId === f.id) { ids.set(x.driverId, x.driverName); starts.set(x.driverId, (starts.get(x.driverId) || 0) + 1); }
+    const ranked = s.drivers.filter(d => d.teamId === f.id).sort((a, b) => (a.pos || 99) - (b.pos || 99)).map(d => d.id);
+    let pair = races.length ? [...starts.keys()].sort((a, b) => starts.get(b) - starts.get(a) || ranked.indexOf(a) - ranked.indexOf(b)).slice(0, 2) : ranked.slice(0, 2);
+    if (pair.length < 2) return { kind: 'duel', empty: true, single: pair.length === 1 ? (ids.get(pair[0]) || '') : null, team: f.short, color: f.color, season: s.season };
     const all = allDrivers(files);
     const side = id => { const d = all.find(x => x.id === id) || {}, st = s.drivers.find(x => x.id === id) || {};
       return { id, name: d.name || ids.get(id) || '', face: d.image || null, cc: S.countryCode(d.country || d.nationality, d.flagPath), pos: st.pos ?? null, points: st.points ?? 0,
@@ -153,13 +153,14 @@
     let sameCar = 0;
     for (const r of races) {
       const a = (r.raw.results || []).find(x => x.driverId === A.id), b = (r.raw.results || []).find(x => x.driverId === B.id);
-      if (!a || !b) { rows.push({ round: r.round, cc: r.cc, winner: null }); continue; }
-      if (a.position === b.position) { sameCar++; continue; }   // endurance: same car, no duel
       const fin = x => !x.status || /RUNNING|FINISH|CLASSIFIED/i.test(x.status);
+      if (a && b && a.position === b.position) { sameCar++; continue; }   // endurance: same car, no duel
       for (const [D, x] of [[A, a], [B, b]]) {
+        if (!x) continue;   // did not race this round: own stats still count, no head-to-head
         if (fin(x)) { D.n++; D.sum += x.position; D.best = D.best == null ? x.position : Math.min(D.best, x.position); if (x.position === 1) D.wins++; if (x.position <= 3) D.podiums++;
           if (x.startingPosition) D.gained += x.startingPosition - x.position; } else D.dnf++;
       }
+      if (!a || !b) { rows.push({ round: r.round, cc: r.cc, winner: null, a: a ? (fin(a) ? 'P' + a.position : 'DNF') : null, b: b ? (fin(b) ? 'P' + b.position : 'DNF') : null }); continue; }
       const ra = fin(a) ? a.position : 999, rb = fin(b) ? b.position : 999;
       const w = ra === rb ? null : ra < rb ? 'A' : 'B';
       if (w === 'A') A.race++; else if (w === 'B') B.race++;
