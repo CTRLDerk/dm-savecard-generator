@@ -7,12 +7,12 @@
   const { C, F, fit, wrap, spaced, label, stripe, logoBox, readable } = Card.helpers;
   const W = Card.W, H = Card.H;
   const L = {
-    en: { story: 'The story so far', after: 'after round {R} of {N}', chapters: 'Chapters', noCh: 'No chapters saved yet. Save one with “Save as chapter”.',
+    en: { story: 'The story so far', after: 'after round {R} of {N}', chapters: 'Chapters', noCh: 'No chapters saved yet. Save one with “Save as chapter”.', thisSeason: 'This season', podiums: 'Podiums', seasonHigh: 'season high', best: 'Best result', top10: 'Top 10s', dnfs: 'DNFs', ups: 'Upgrades', champRun: 'Championship', toGo: 'to go', round: 'Round', worked: 'worked', bestPos: 'best',
       champ: 'Championship', result: 'Race result', dnf: 'DNF', upOk: 'upgrade', upBad: 'failed upgrade', protest: 'stewards', injury: 'injury', ch: 'chapter',
       open: 'Open questions', car: 'Our car', contracts: 'Contracts ending', none: 'None', target: 'Board target', now: 'now', next: 'Next race',
       words: ['Poor', 'Shaky', 'Solid', 'Strong', 'World-class'], ahead: 'ahead of target', on: 'on target', behind: 'behind target', week: 'week', pts: 'pts',
       prologue: 'Prologue', pilot: 'Pilot', goal: 'Goal', season: 'Season', lead: 'lead', gap: 'gap' },
-    nl: { story: 'Het verhaal tot nu toe', after: 'na ronde {R} van {N}', chapters: 'Hoofdstukken', noCh: 'Nog geen hoofdstukken bewaard. Bewaar er een met “Bewaar als hoofdstuk”.',
+    nl: { story: 'Het verhaal tot nu toe', after: 'na ronde {R} van {N}', chapters: 'Hoofdstukken', noCh: 'Nog geen hoofdstukken bewaard. Bewaar er een met “Bewaar als hoofdstuk”.', thisSeason: 'Dit seizoen', podiums: 'Podiums', seasonHigh: 'hoogste dit seizoen', best: 'Beste resultaat', top10: 'Top 10', dnfs: 'Uitvallers', ups: 'Upgrades', champRun: 'Kampioenschap', toGo: 'nog te gaan', round: 'Ronde', worked: 'gelukt', bestPos: 'beste',
       champ: 'Kampioenschap', result: 'Raceuitslag', dnf: 'DNF', upOk: 'upgrade', upBad: 'mislukte upgrade', protest: 'stewards', injury: 'blessure', ch: 'hoofdstuk',
       open: 'Open vragen', car: 'Onze auto', contracts: 'Aflopende contracten', none: 'Geen', target: 'Doel bestuur', now: 'nu', next: 'Volgende race',
       words: ['Zwak', 'Wankel', 'Degelijk', 'Sterk', 'Wereldklasse'], ahead: 'boven het doel', on: 'op koers', behind: 'onder het doel', week: 'week', pts: 'ptn',
@@ -121,81 +121,151 @@
     label(ctx, [(snap.category || '') + ' ' + snap.season, snap.preseason ? '' : fill(t.after, { R: snap.round, N: snap.total })].filter(Boolean).join('  ·  '), 76 + ctx.measureText(k).width + 18, 59, C.bgMuted);
     ctx.font = F(800, 46, true); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, (ep.series ? ep.series.name : T.short).toUpperCase(), 760), 46, 114);
 
-    // Chart: rounds across, positions down (P1 on top)
+    // Chart: rounds across, positions down (P1 on top).
     const X0 = 96, X1 = 800, Y0 = 150, Y1 = 470;
-    const n = Math.max(1, snap.total || snap.races.length), field = Math.max(3, snap.field.length);
+    const n = Math.max(1, snap.total || snap.races.length);
+    const bestOf = r => r.mine.slice().sort((a, b) => (a.finished === b.finished ? (a.pos || 99) - (b.pos || 99) : a.finished ? -1 : 1))[0] || null;
+    const races = snap.races.map(r => Object.assign({}, r, { best: bestOf(r) }));
+    // Depth of the scale: the worst place we actually saw (results and standings), at least the number of teams.
+    const seen = races.flatMap(r => [r.best && r.best.finished ? r.best.pos : null, r.standing ? r.standing.pos : null, r.cars || null]).filter(Boolean);
+    const field = Math.max(3, snap.field.length, ...seen);
+    // One row per position, P1 on top.
+    const rowH = (Y1 - Y0) / (field - 1);
+    const yAt = p => Y0 + (Math.min(p, field) - 1) * rowH;
     const xAt = r => X0 + (n === 1 ? (X1 - X0) / 2 : (r - 1) * (X1 - X0) / (n - 1));
-    const yAt = p => Y0 + (Math.min(p, field) - 1) * (Y1 - Y0) / (field - 1);
-    // grid
-    ctx.font = F(700, 14); ctx.textAlign = 'right';
-    for (const p of [1, 3, 10, field].filter((v, i, a) => v <= field && a.indexOf(v) === i)) {
-      ctx.fillStyle = C.bgLine; ctx.fillRect(X0 - 8, yAt(p), X1 - X0 + 16, 1);
-      ctx.fillStyle = C.bgMuted; ctx.fillText('P' + p, X0 - 16, yAt(p) + 5);
+    const done = races.length ? Math.max(...races.map(r => r.round)) : 0;
+    // rounds still to come: a quiet band
+    if (done < n) {
+      const fx = xAt(done) + (n > 1 ? (X1 - X0) / (n - 1) / 2 : 0);
+      ctx.fillStyle = 'rgba(244,237,226,0.035)'; ctx.fillRect(fx, Y0 - 12, X1 + 8 - fx, Y1 - Y0 + 24);
+      ctx.font = F(700, 12); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'right'; ctx.fillText((n - done) + ' ' + t.toGo, X1 + 4, Y0 - 18); ctx.textAlign = 'left';
+    }
+    // grid: a line for every position; every label when there is room, else every 5th (plus P1 and the last)
+    const labelEvery = rowH >= 15 ? 1 : rowH >= 7.5 ? 2 : 5;
+    const fs = Math.max(10, Math.min(14, Math.floor(rowH * (labelEvery === 1 ? 0.95 : 1.6))));
+    ctx.textAlign = 'right';
+    for (let p = 1; p <= field; p++) {
+      const strong = p === 1 || p % 5 === 0 || p === field;
+      ctx.fillStyle = strong ? C.bgLine : 'rgba(244,237,226,0.06)';
+      ctx.fillRect(X0 - 8, Math.round(yAt(p)), X1 - X0 + 16, 1);
+      // labels on P1, P3, P5 … (or every one / every 5th); the last position too, unless the one above it is labelled
+      const on = q => labelEvery === 1 || (labelEvery === 2 ? (q - 1) % 2 === 0 : q === 1 || q % 5 === 0);
+      if (on(p) || p === field && !on(field - 1)) {
+        ctx.font = F(strong ? 700 : 600, fs); ctx.fillStyle = strong ? C.bgMuted : 'rgba(179,167,151,0.7)';
+        ctx.fillText('P' + p, X0 - 16, yAt(p) + fs * 0.36);
+      }
     }
     ctx.textAlign = 'left';
     // chapter markers (this season)
     const chs = (journal.chapters || []).filter(c => c.season === snap.season && c.round > 0);
-    for (const c of chs) {
+    // several chapters in one round share one marker: "1–3"
+    const byRound = new Map(); for (const c of chs) { if (!byRound.has(c.round)) byRound.set(c.round, []); byRound.get(c.round).push(c.no); }
+    for (const [round, nos] of byRound) {
+      const c = { round, no: nos.length > 1 ? Math.min(...nos) + '–' + Math.max(...nos) : nos[0] };
       const x = xAt(c.round);
       ctx.strokeStyle = C.bgMuted; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, Y0 - 16); ctx.lineTo(x, Y1 + 4); ctx.stroke(); ctx.setLineDash([]);
       ctx.font = F(700, 13); const lab = String(c.no); const lw = ctx.measureText(lab).width + 10;
       ctx.fillStyle = C.bgText; ctx.fillRect(x - lw / 2, Y0 - 34, lw, 18); ctx.fillStyle = C.ink; ctx.textAlign = 'center'; ctx.fillText(lab, x, Y0 - 20); ctx.textAlign = 'left';
     }
-    // championship line
-    const pts = snap.races.filter(r => r.standing).map(r => [xAt(r.round), yAt(r.standing.pos)]);
+    // race results (under the line), podiums named
+    const used = { dnf: false, result: false };
+    for (const r of races) {
+      const best = r.best; if (!best) continue;
+      const x = xAt(r.round);
+      if (!best.finished) { cross(ctx, x, Y1 + 26, 7, C.redText); used.dnf = true; continue; }
+      const y = yAt(best.pos); used.result = true;
+      ctx.fillStyle = best.pos === 1 ? C.gold : best.pos <= 3 ? C.green : C.bg; ctx.strokeStyle = best.pos <= 3 ? ctx.fillStyle : C.bgMuted; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, best.pos <= 3 ? 7.5 : 5.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if (best.pos <= 3) { ctx.font = F(800, 15, true); ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'center'; ctx.fillText('P' + best.pos, x, y - 13); ctx.textAlign = 'left'; }
+    }
+    // championship line on top
+    const pts = races.filter(r => r.standing).map(r => [xAt(r.round), yAt(r.standing.pos)]);
     if (pts.length) {
       ctx.strokeStyle = T.color || C.bgText; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.beginPath();
       pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
       const [lx, ly] = pts[pts.length - 1];
       ctx.fillStyle = T.color || C.bgText; ctx.beginPath(); ctx.arc(lx, ly, 8, 0, Math.PI * 2); ctx.fill();
-      ctx.font = F(800, 22, true); ctx.fillStyle = C.bgText; ctx.fillText('P' + snap.races.filter(r => r.standing).slice(-1)[0].standing.pos, lx + 14, ly + 8);
+      ctx.font = F(800, 22, true); ctx.fillStyle = C.bgText; ctx.fillText('P' + races.filter(r => r.standing).slice(-1)[0].standing.pos, lx + 14, ly + 8);
     }
-    // race results
-    for (const r of snap.races) {
-      const best = r.mine.slice().sort((a, b) => (a.finished === b.finished ? (a.pos || 99) - (b.pos || 99) : a.finished ? -1 : 1))[0];
-      if (!best) continue;
-      const x = xAt(r.round);
-      if (!best.finished) { cross(ctx, x, Y1 + 30, 7, C.redText); continue; }
-      const y = yAt(best.pos);
-      ctx.fillStyle = best.pos === 1 ? C.gold : best.pos <= 3 ? C.green : C.bg; ctx.strokeStyle = best.pos <= 3 ? ctx.fillStyle : C.bgText; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    }
-    // scars row: upgrades, stewards, injuries (from the journal)
+    // scars row: upgrades, stewards, injuries; several in one round sit side by side
     const evs = journal.events.filter(e => e.season === snap.season);
-    const sy = Y1 + 58;
+    const sy = Y1 + 58, per = new Map(), marks = [];
     for (const e of evs) {
-      const r = Math.max(1, Math.min(n, e.round || 1)), x = xAt(r) + (e.round === 0 ? -14 : 0);
-      if (e.type === 'upgrade') tri(ctx, x, sy, e.success ? C.green : C.redText, e.success);
-      else if (e.type === 'paddock' && /protest|investigation|techcheck/.test((e.item || {}).type)) bang(ctx, x + 12, sy);
-      else if (e.type === 'injury') plus(ctx, x - 12, sy, C.redText);
+      const kind = e.type === 'upgrade' ? (e.success ? 'upOk' : 'upBad') : e.type === 'paddock' && /protest|investigation|techcheck/.test((e.item || {}).type) ? 'protest' : e.type === 'injury' ? 'injury' : null;
+      if (!kind) continue;
+      const r = Math.max(1, Math.min(n, e.round || 1));
+      marks.push({ r, kind, i: per.get(r) || 0 }); per.set(r, (per.get(r) || 0) + 1);
     }
-    // x labels
-    ctx.font = F(600, 11); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'center';
-    for (const c of snap.calendar) if (c.round <= n) ctx.fillText(c.cc || String(c.round), xAt(c.round), sy + 30);
+    const step = Math.min(15, (X1 - X0) / Math.max(1, n - 1) * 0.9);
+    const usedK = new Set();
+    for (const m of marks) {
+      const k = per.get(m.r), x = xAt(m.r) + (m.i - (k - 1) / 2) * step;
+      usedK.add(m.kind);
+      if (m.kind === 'upOk') tri(ctx, x, sy, C.green, true);
+      else if (m.kind === 'upBad') tri(ctx, x, sy, C.redText, false);
+      else if (m.kind === 'protest') bang(ctx, x, sy);
+      else plus(ctx, x, sy, C.redText);
+    }
+    // x labels: country codes say little when they repeat (NASCAR: all US), then round numbers
+    const cal = snap.calendar.filter(c => c.round <= n);
+    const ccs = new Set(cal.map(c => c.cc).filter(Boolean));
+    const useCc = ccs.size >= Math.min(6, cal.length * 0.4);
+    const every = n > 26 ? 2 : 1;
+    ctx.font = F(600, 11); ctx.textAlign = 'center';
+    for (const c of cal) {
+      if (!useCc && c.round % every && c.round !== 1 && c.round !== n && c.round !== done) continue;
+      ctx.fillStyle = c.round === done ? C.bgText : C.bgMuted; ctx.font = F(c.round === done ? 800 : 600, 11);
+      ctx.fillText(useCc ? (c.cc || String(c.round)) : String(c.round), xAt(c.round), sy + 30);
+    }
     ctx.textAlign = 'left';
-    // legend
+    if (!useCc) { ctx.font = F(600, 11); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'right'; ctx.fillText(t.round.toUpperCase(), X0 - 16, sy + 30); ctx.textAlign = 'left'; }
+    // legend: only what is on the card
     let lx = X0 - 8; const ly = 600 - 4;
-    ctx.font = F(500, 13);
     const key = (draw, text) => { draw(lx + 8, ly - 5); ctx.font = F(500, 13); ctx.fillStyle = C.bgMuted; ctx.fillText(text, lx + 22, ly); lx += 30 + ctx.measureText(text).width; };
-    key((x, y) => { ctx.fillStyle = T.color || C.bgText; ctx.fillRect(x - 8, y - 2, 16, 5); }, t.champ);
-    key((x, y) => { ctx.strokeStyle = C.bgText; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke(); }, t.result);
-    key((x, y) => cross(ctx, x, y, 5, C.redText), t.dnf);
-    key((x, y) => tri(ctx, x, y + 1, C.green, true), t.upOk);
-    key((x, y) => tri(ctx, x, y + 1, C.redText, false), t.upBad);
-    key((x, y) => bang(ctx, x, y + 1), t.protest);
-    // chapter list
+    if (pts.length) key((x, y) => { ctx.fillStyle = T.color || C.bgText; ctx.fillRect(x - 8, y - 2, 16, 5); }, t.champ);
+    if (used.result) key((x, y) => { ctx.strokeStyle = C.bgMuted; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke(); }, t.result);
+    if (used.dnf) key((x, y) => cross(ctx, x, y, 5, C.redText), t.dnf);
+    if (usedK.has('upOk')) key((x, y) => tri(ctx, x, y + 1, C.green, true), t.upOk);
+    if (usedK.has('upBad')) key((x, y) => tri(ctx, x, y + 1, C.redText, false), t.upBad);
+    if (usedK.has('protest')) key((x, y) => bang(ctx, x, y + 1), t.protest);
+    if (usedK.has('injury')) key((x, y) => plus(ctx, x, y, C.redText), t.injury);
+
+    // Right panel: the chapters so far, or (none yet) the season in numbers.
     const PX = 846, PW2 = W - 48 - PX;
     panel(ctx, PX, 90, PW2, 498);
-    label(ctx, t.chapters, PX + 18, 118, C.bgMuted);
     const list = (journal.chapters || []).slice(-9);
-    if (!list.length) { ctx.font = F(500, 15); ctx.fillStyle = C.bgMuted; wrap(ctx, t.noCh, PW2 - 36, 4).forEach((l, i) => ctx.fillText(l, PX + 18, 150 + i * 21)); }
-    list.forEach((c, i) => {
-      const y = 148 + i * 50;
-      ctx.font = F(800, 26, true); ctx.fillStyle = C.bgText; ctx.fillText(c.no === 0 ? '0' : String(c.no), PX + 18, y + 14);
-      ctx.font = F(600, 15); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, c.title || '', PW2 - 80), PX + 62, y + 2);
-      ctx.font = F(500, 13); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, [c.season, c.round ? 'R' + c.round : null, c.circuit].filter(Boolean).join(' · '), PW2 - 80), PX + 62, y + 21);
-      if (i < list.length - 1) { ctx.fillStyle = C.bgLine; ctx.fillRect(PX + 18, y + 33, PW2 - 36, 1); }
-    });
+    if (list.length) {
+      label(ctx, t.chapters, PX + 18, 118, C.bgMuted);
+      list.forEach((c, i) => {
+        const y = 148 + i * 50;
+        ctx.font = F(800, 26, true); ctx.fillStyle = C.bgText; ctx.fillText(c.no === 0 ? '0' : String(c.no), PX + 18, y + 14);
+        ctx.font = F(600, 15); ctx.fillStyle = C.bgText; ctx.fillText(fit(ctx, c.title || '', PW2 - 80), PX + 62, y + 2);
+        ctx.font = F(500, 13); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, [c.season, c.round ? 'R' + c.round : null, c.sourceName || c.circuit].filter(Boolean).join(' · '), PW2 - 80), PX + 62, y + 21);
+        if (i < list.length - 1) { ctx.fillStyle = C.bgLine; ctx.fillRect(PX + 18, y + 33, PW2 - 36, 1); }
+      });
+    } else {
+      label(ctx, t.thisSeason, PX + 18, 118, C.bgMuted);
+      const fin = races.filter(r => r.best && r.best.finished);
+      const top = fin.slice().sort((a, b) => a.best.pos - b.best.pos)[0];
+      const stand = races.filter(r => r.standing).map(r => r.standing.pos);
+      const ups = evs.filter(e => e.type === 'upgrade');
+      const rows = [
+        [t.best, top ? 'P' + top.best.pos : '–', top ? t.round + ' ' + top.round + (top.name ? ' · ' + top.name : '') : ''],
+        [t.top10, String(fin.filter(r => r.best.pos <= 10).length), '/ ' + races.length],
+        [t.dnfs, String(races.filter(r => r.best && !r.best.finished).length), ''],
+        ups.length ? [t.ups, ups.filter(e => e.success).length + '/' + ups.length, t.worked]
+          : [t.podiums, String(fin.filter(r => r.best.pos <= 3).length), '/ ' + races.length],   // no factory data (multiplayer recaps)
+        [t.champRun, stand.length ? 'P' + stand[stand.length - 1] : '–', !stand.length ? '' : Math.min(...stand) < stand[stand.length - 1] ? t.bestPos + ' P' + Math.min(...stand) : t.seasonHigh]
+      ];
+      rows.forEach(([k, v, sub], i) => {
+        const y = 166 + i * 78;
+        ctx.font = F(600, 13); ctx.fillStyle = C.bgMuted; ctx.fillText(k.toUpperCase(), PX + 18, y);
+        ctx.font = F(800, 40, true); ctx.fillStyle = C.bgText; ctx.fillText(v, PX + 18, y + 42);
+        const vw = ctx.measureText(v).width;
+        ctx.font = F(500, 14); ctx.fillStyle = C.bgMuted; ctx.fillText(fit(ctx, sub, PW2 - 52 - vw), PX + 30 + vw, y + 40);
+        if (i < rows.length - 1) { ctx.fillStyle = C.bgLine; ctx.fillRect(PX + 18, y + 58, PW2 - 36, 1); }
+      });
+    }
     footer(ctx, [T.short, T.pos != null && !snap.preseason ? 'P' + T.pos + ' · ' + T.points + ' ' + t.pts : null, ep.series && ep.series.goalText ? t.goal + ': ' + ep.series.goalText : null].filter(Boolean).join('  ·  '));
     return canvas;
   }

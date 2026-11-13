@@ -93,7 +93,8 @@
     // Form
     label2(ctx, t.form, 408, 252);
     let fx = 408;
-    for (const f of v.form) { const w = chip(ctx, f.label, fx, 266, resKind(f.pos)); ctx.font = F(600, 11); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'center'; ctx.fillText(f.cc || '', fx + w / 2, 314); ctx.textAlign = 'left'; fx += w + 8; }
+    const oneCcF = new Set(v.form.map(f => f.cc)).size <= 1 && v.form.length > 1;
+    for (const f of v.form) { const w = chip(ctx, f.label, fx, 266, resKind(f.pos)); ctx.font = F(600, 11); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'center'; ctx.fillText(oneCcF && f.round ? 'R' + f.round : f.cc || '', fx + w / 2, 314); ctx.textAlign = 'left'; fx += w + 8; }
     if (!v.form.length) { ctx.font = F(500, 16); ctx.fillStyle = C.bgMuted; ctx.fillText('–', 408, 288); }
     // Last time here
     label2(ctx, t.here, 408, 356);
@@ -189,10 +190,11 @@
     // Race by race
     label2(ctx, t.perRace, 48, 532);
     const n = Math.max(1, v.rows.length), gw = Math.min(70, (W - 96) / n);
+    const oneCc = new Set(v.rows.map(r => r.cc)).size <= 1;   // all races in one country (NASCAR): round numbers
     v.rows.forEach((r, i) => {
       const x = 48 + i * gw;
       ctx.fillStyle = r.winner === 'A' ? ca : r.winner === 'B' ? cb : C.bgRow; ctx.fillRect(x, 546, gw - 6, 22);
-      ctx.font = F(600, 11); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'center'; ctx.fillText(r.cc || String(r.round), x + (gw - 6) / 2, 588); ctx.textAlign = 'left';
+      ctx.font = F(600, 11); ctx.fillStyle = C.bgMuted; ctx.textAlign = 'center'; ctx.fillText(oneCc ? String(r.round) : r.cc || String(r.round), x + (gw - 6) / 2, 588); ctx.textAlign = 'left';
     });
     footer(ctx, v.team + '  ·  ' + v.rows.filter(r => r.winner).length + ' / ' + v.races + ' ' + t.races.toLowerCase(), W, 612);
     return canvas;

@@ -197,7 +197,7 @@
       setInterval(poll, 5000);
     } else {
       st.source = 'local';
-      $('#folder').innerHTML = 'No local server: choose your <b>sauvegardes</b> folder. Files stay on your PC.';
+      $('#folder').innerHTML = 'No local server: choose your <b>sauvegardes</b> folder. Files stay on your PC.' + (FSA ? '' : ' <span title="Firefox and Safari cannot remember a folder; Chrome and Edge can.">(chosen each visit in this browser)</span>');
       $('#pick').hidden = false;
       await loadLeagues();
       renderSlots();
@@ -254,13 +254,26 @@
   async function openHandle(h, ask) {
     let perm = await h.queryPermission({ mode: 'read' });
     if (perm !== 'granted' && ask) perm = await h.requestPermission({ mode: 'read' });
-    if (perm !== 'granted') { $('#pick').textContent = 'Reopen ' + h.name; st.dirPending = h; return false; }
+    if (perm !== 'granted') { st.dirPending = h; showReopen(h); return false; }
     st.dirHandle = h; st.dirPending = null; $('#pick').textContent = 'Change folder';
     await useLocal(await readHandle(h), h.name);
     pickDefault();
     clearInterval(st.localTimer);
     st.localTimer = setInterval(localPoll, 5000);
     return true;
+  }
+  // The browser remembers the folder, but asks once per visit before the page may read it again.
+  // One click on this button is enough (Chrome may offer "Allow on every visit": then not even that).
+  function showReopen(h) {
+    $('#pick').textContent = 'Reopen ' + h.name;
+    $('#folder').innerHTML = '<b>Folder</b> ' + esc(h.name) + ' · click to open';
+    if (isMp(st.sel) && st.leagues.some(x => x.id === st.sel)) return;   // a multiplayer season needs no folder
+    $('#main').innerHTML = sec('Welcome back') +
+      '<p>Your save folder is remembered: <b>' + esc(h.name) + '</b>. The browser only asks once per visit whether the page may read it again.</p>' +
+      '<div class="actions top"><button class="btn pri" type="button" id="reopen">Open ' + esc(h.name) + '</button><button class="btn" type="button" id="otherdir">Choose another folder</button></div>' +
+      '<p class="note">Tip: when Chrome or Edge asks, pick <b>Allow on every visit</b> and the tool opens your saves straight away next time.</p>';
+    $('#reopen').addEventListener('click', () => openHandle(h, true).then(ok => { if (!ok) note('#folder', 'No permission given. Click again to retry.', 'err'); }));
+    $('#otherdir').addEventListener('click', () => { st.dirPending = null; $('#pick').click(); });
   }
   async function localPoll() {
     if (!st.dirHandle || document.hidden || st.busy) return;
@@ -543,7 +556,7 @@
             '<button class="btn pri" data-cap="ai" type="button" data-act="pasteai">Paste answer</button>' +
             '<button class="btn" type="button" data-act="prompt">Copy as AI prompt</button><span class="note" id="gennote"></span></div>' +
           '<textarea class="txt" id="txt" spellcheck="true" aria-label="Post text"></textarea>' +
-          '<div class="actions"><button class="btn" type="button" data-act="copytxt">Copy text</button><span class="count" id="count"></span><span class="note" id="txtnote"></span></div>' +
+          '<div class="actions"><button class="btn" type="button" data-act="copytxt">Copy text</button><button class="btn" type="button" data-act="savepost" id="savepost" title="Keep this card and text in the playthrough: chapter list, storyline and season book">Save as chapter</button><span class="count" id="count"></span><span class="note" id="txtnote"></span></div>' +
           '<div class="help">' + sec('Writing help') +
             '<textarea class="txt notes" id="notes" spellcheck="true" placeholder="My notes: what I decided and why, what I expected, how it felt, what is next… (kept per save and round)" aria-label="My notes"></textarea>' +
             '<div class="filters tight"><label class="f">Help me <select id="wh-mode">' + Object.entries(AS.MODES).map(([v, m]) => '<option value="' + v + '"' + (v === o.whMode ? ' selected' : '') + '>' + m.label + '</option>').join('') + '</select></label><span class="note" id="whgoes"></span></div>' +
@@ -596,6 +609,7 @@
     document.querySelectorAll('[data-cap]').forEach(el => { el.hidden = !on[el.dataset.cap]; });
     $('#sg-card').hidden = !Object.values(c.card).some(Boolean);
     $('#genbtn').textContent = c.ai ? 'Open in Claude' : 'New wording';
+    if ($('#savepost')) $('#savepost').hidden = o.kind === 'episode';   // the chapter tab has its own button
     store.set('opt', o);
   }
 
@@ -757,6 +771,25 @@
     rebrand: 'Name change', analyst: 'Testing analyst', analyst_wrong: 'Testing tip proved wrong', goal: 'Playthrough goal', goal_done: 'Goal reached', goal_failed: 'Goal missed' };
   const label = k => LABELS[k] || k;
 
+  // Any post (race card, summary, duel, wrapped …) can be a chapter of the playthrough: its text, a small copy of the card, the round.
+  async function savePostChapter() {
+    if (!st.journal || !st.summary) { note('#txtnote', 'No playthrough journal for this save yet.', 'err'); return; }
+    const text = $('#txt').value.trim(); if (!text) { note('#txtnote', 'Write or generate the text first.', 'err'); return; }
+    const o = st.opt, s = st.summary, f = s.focus || {};
+    const head = (/^\*\*(.+?)\*\*/m.exec(text) || /^#+\s*(.+)$/m.exec(text) || [])[1];
+    const kindName = KIND_NAMES[o.kind] || o.kind;
+    const extra = o.kind === 'stretch' && st.view && !st.view.empty ? ' R' + st.view.from + '–' + st.view.to : o.kind === 'wrapped' ? ' · ' + o.slide : '';
+    let img = null;
+    try {   // a smaller JPEG copy of the card; kept on disk with the server, skipped in the browser to spare its storage
+      if (st.source === 'server') { const c = document.createElement('canvas'), src = $('#card'); c.width = 1200; c.height = Math.round(1200 * src.height / src.width); c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); img = c.toDataURL('image/jpeg', 0.82); }
+    } catch (e) { img = null; }
+    const ch = Ch.addChapter(st.journal, { kind: 'chapter', source: o.kind + (o.kind === 'wrapped' ? ':' + o.slide : ''), sourceName: kindName + extra,
+      title: (head || kindName + extra).replace(/[*_~`]/g, '').slice(0, 90), text, lang: o.lang, img,
+      pos: f.pos ?? null, points: f.points ?? null, circuit: s.last ? s.last.name : null });
+    await saveJournal();
+    note('#txtnote', 'Saved as chapter ' + ch.no + ' (' + kindName + extra + '). It shows in the chapter list, the storyline and the season book.', 'ok');
+    return ch;
+  }
   async function saveChapter(text) {
     if (!st.ep || !st.journal) return null;
     const ch = Ch.addChapter(st.journal, Object.assign(Ep.toChapter(st.ep, text, st.opt.lang, st.variant), textTitle() ? { title: textTitle() } : {}));
@@ -1036,6 +1069,7 @@
     const b = e.target.closest('[data-act]'); if (!b) return;
     const act = b.dataset.act;
     if (act === 'cfd') { await cfdNext(); return; }
+    if (act === 'savepost') { if (st.opt.kind === 'episode') { const ch = await saveChapter($('#txt').value); if (ch) { note('#txtnote', 'Saved as ' + (ch.kind === 'prologue' ? 'the prologue' : 'chapter ' + ch.no) + '.', 'ok'); renderStory(); } } else await savePostChapter(); return; }
     if (act === 'copyimg') {
       try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob() })]); note('#imgnote', 'Copied. Paste it in Discord with Ctrl+V.', 'ok'); }
       catch (err) { note('#imgnote', 'This browser does not allow copying images. Use Download PNG.', 'err'); }

@@ -297,7 +297,8 @@
   function addChapter(journal, ch) {
     const L = journal.last || {};
     const entry = Object.assign({ season: L.season, round: L.round, week: L.week, at: new Date().toISOString(), upto: journal.seq }, ch);
-    const same = journal.chapters.findIndex(c => c.season === entry.season && c.round === entry.round && (c.kind || 'chapter') === (entry.kind || 'chapter'));
+    // Same round, same kind and same source (a chapter, or a race card / summary / duel … saved as a chapter) → replace.
+    const same = journal.chapters.findIndex(c => c.season === entry.season && c.round === entry.round && (c.kind || 'chapter') === (entry.kind || 'chapter') && (c.source || 'episode') === (entry.source || 'episode'));
     if (same >= 0) { entry.no = journal.chapters[same].no; journal.chapters[same] = entry; }
     else { entry.no = entry.kind === 'prologue' ? 0 : journal.chapters.length ? journal.chapters[journal.chapters.length - 1].no + 1 : 1; journal.chapters.push(entry); }
     return entry;

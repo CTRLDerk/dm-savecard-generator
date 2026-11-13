@@ -39,7 +39,8 @@
 <p>After every save the tool notes what changed (results, standings, firsts, signings, upgrades) in a journal. <b>Chapter</b> turns that into a story.</p>
 <ul><li>A save that is already going: the first chapter is a <b>prologue</b> (the story so far).</li>
 <li>A new career: <b>Start new playthrough</b> with a name, a goal and the drivers you follow.</li>
-<li><b>Save as chapter</b> marks where the next chapter starts. <b>Season book (HTML)</b> gives all chapters as one page.</li></ul>`],
+<li><b>Save as chapter</b> marks where the next chapter starts. <b>Season book (HTML)</b> gives all chapters as one page.</li>
+<li>Every other post can be a chapter too: <b>Save as chapter</b> under the text keeps a race card, summary, duel, wrapped slide … with its text in the story and the book.</li></ul>`],
         ['post', 'Posting', `
 <ul><li><b>Copy for Discord</b>: click, paste the card in your thread (Ctrl+V); click, paste the text with it and press Enter; click again for part 2 … One thing per paste, that is how Discord works.</li>
 <li><b>Copy image</b> / <b>Download PNG</b>: just the card.</li>
@@ -96,7 +97,8 @@
 <p>Na elke save noteert de tool wat er veranderde (uitslagen, stand, primeurs, transfers, upgrades) in een dagboek. <b>Chapter</b> maakt daar een verhaal van.</p>
 <ul><li>Een save die al loopt: het eerste hoofdstuk is een <b>proloog</b> (het verhaal tot nu toe).</li>
 <li>Een nieuwe carrière: <b>Start new playthrough</b> met een naam, een doel en de coureurs die je volgt.</li>
-<li><b>Save as chapter</b> legt vast waar het volgende hoofdstuk begint. <b>Season book (HTML)</b> geeft alle hoofdstukken op één pagina.</li></ul>`],
+<li><b>Save as chapter</b> legt vast waar het volgende hoofdstuk begint. <b>Season book (HTML)</b> geeft alle hoofdstukken op één pagina.</li>
+<li>Elke andere post kan ook een hoofdstuk zijn: <b>Save as chapter</b> onder de tekst bewaart een racekaart, samenvatting, duel, wrapped-slide … met tekst in het verhaal en het boek.</li></ul>`],
         ['post', 'Posten', `
 <ul><li><b>Copy for Discord</b>: klik, plak de kaart in je thread (Ctrl+V); klik, plak de tekst erbij en druk op Enter; klik opnieuw voor deel 2 … Eén ding per keer plakken, zo werkt Discord.</li>
 <li><b>Copy image</b> / <b>Download PNG</b>: alleen de kaart.</li>

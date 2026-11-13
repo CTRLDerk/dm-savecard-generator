@@ -27,7 +27,8 @@
     if (S && S.rules) premise.push('<b>' + t.rules + ':</b> ' + esc(S.rules));
     const toc = chapters.map(c => '<li><a href="#ch' + c.no + '"><b>' + (c.kind === 'prologue' ? '0' : c.no) + '</b><span>' + esc(c.title || '') + '</span><i>' + esc([c.season, c.round ? 'R' + c.round : null, c.circuit].filter(Boolean).join(' · ')) + '</i></a></li>').join('');
     const body = chapters.map(c => '<article id="ch' + c.no + '"><div class="kick">' + esc(c.kind === 'prologue' ? t.prologue : t.chapter + ' ' + c.no) + ' · ' + esc([c.season, c.round ? 'R' + c.round : null].filter(Boolean).join(' · ')) +
-      (c.pos ? ' · P' + esc(c.pos) : '') + '</div>' + P.discordHtml(c.text || '') + '</article>').join('');
+      (c.pos ? ' · P' + esc(c.pos) : '') + (c.sourceName ? ' · ' + esc(c.sourceName) : '') + '</div>' +
+      (c.img && /^data:image\/(png|jpeg);base64,/.test(c.img) ? '<img class="card" src="' + c.img + '" alt="">' : '') + P.discordHtml(c.text || '') + '</article>').join('');
     const table = seasons.length ? '<h2>' + t.seasons + '</h2><table><tr><th>' + t.season + '</th><th>' + t.pos + '</th><th>' + t.pts + '</th><th>' + t.wins + '</th><th>' + t.target + '</th><th>' + t.champion + '</th></tr>' +
       seasons.map(x => '<tr><td>' + esc(x.season) + '</td><td>' + (x.pos ? 'P' + esc(x.pos) : '–') + '</td><td>' + esc(x.points ?? '–') + '</td><td>' + esc(x.wins ?? '–') + '</td><td>' + (x.expected ? 'P' + esc(x.expected) : '–') + '</td><td>' + esc(x.champion ? x.champion.team : '–') + '</td></tr>').join('') + '</table>' : '';
     return '<!doctype html><html lang="' + lang + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(title) + '</title>' +
@@ -39,6 +40,7 @@
   }
 
   const CSS = [
+    'article img.card{display:block;width:100%;height:auto;margin:10px 0 14px;border:1px solid var(--line)}',
     ':root{--asphalt:#15120F;--pit:#1E1A16;--raised:#29231D;--line:#3A322A;--chrome:#F4EDE2;--muted:#B3A797;--red:#E2372B;--green:#3DC36B;--gold:#F5C04A}',
     '*{box-sizing:border-box}body{margin:0;background:var(--asphalt);color:var(--chrome);font:17px/1.55 Barlow,system-ui,sans-serif}',
     '.stripe{height:10px;background-color:var(--chrome);background-image:repeating-conic-gradient(var(--asphalt) 0 25%,var(--chrome) 0 50%);background-size:10px 10px}.redline{height:3px;background:var(--red)}',
