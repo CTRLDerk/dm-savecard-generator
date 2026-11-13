@@ -411,7 +411,12 @@
     transfer: 'Topic: a contract or transfer announcement in the style of a transfer reporter ("Here we go!" for a done signing or extension, a goodbye for a departure, "contract watch" for a contract that ends): who, role, contract length, age, level (as a word), career record.',
     duel: 'Topic: the head-to-head between the two teammates this season: races won against each other, qualifying, points, best result, DNFs, who leads the duel.',
     devrace: 'Topic: the development race: how our car developed this season compared with the leader and the teams around us; ratings only as words (poor, shaky, solid, strong, world-class), never as numbers.',
-    wrapped: 'Topic: a "Season Wrapped" year-in-review for this team, like Spotify Wrapped: one big fact per line (final position, races, wins, podiums, best moment, biggest climb, driver of the year, factory, the story in chapters). Personal and celebratory, honest about setbacks.'
+    wrapped: 'Topic: a "Season Wrapped" year-in-review for this team, like Spotify Wrapped: one big fact per line (final position, races, wins, podiums, best moment, biggest climb, driver of the year, factory, the story in chapters). Personal and celebratory, honest about setbacks.',
+    mpround: 'Topic: a paddock report on this multiplayer round, written as a journalist covering the league (third person, never "we"): every player team\'s result, the best player, the biggest climb, retirements, who moved in the championship and the closest fight between players.',
+    mptable: 'Topic: the players\' championship of this multiplayer league, written as a journalist (third person, never "we"): who leads among the human players, the gaps, who is in form.',
+    mph2h: 'Topic: who beats whom among the human players on race days, written as a journalist (third person, never "we"): the dominant player, the most one-sided and the closest duel.',
+    mpdev: 'Topic: the arms race between the player teams, written as a journalist (third person, never "we"): whose car is best and who developed most this season, upgrades that worked or failed, strongest and weakest areas, research in progress.',
+    mpgrid: 'Topic: the drivers and race strategies of the player teams, written as a journalist (third person, never "we"): the best-placed drivers, and how the pit strategies differed in the last race.'
   };
 
   return { KINDS, SLIDES, WORDS, view, text, seasonRaces, TOPIC, rankWord, levelWord, preview, transfer, duel, devrace, wrapped };

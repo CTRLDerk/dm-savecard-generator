@@ -581,7 +581,8 @@
 
   // What each post type can do: card options, text sources, voices. The page shows only these.
   const KIND_NAMES = { race: 'Race & season', stretch: 'Race summary', episode: 'Chapter', preview: 'Raceweek preview', transfer: 'Here we go', duel: 'Teammate duel', devrace: 'Development race', wrapped: 'Season wrapped',
-    seasonStart: 'Season preview', seasonEnd: 'Season review', us: 'NASCAR recap', strategy: 'Race strategy', championship: 'Championship', rnd: 'R&D update', paddock: 'Paddock news' };
+    seasonStart: 'Season preview', seasonEnd: 'Season review', us: 'NASCAR recap', strategy: 'Race strategy', championship: 'Championship', rnd: 'R&D update', paddock: 'Paddock news',
+    mpround: 'Paddock report', mptable: 'Players’ table', mph2h: 'Who beats whom', mpdev: 'Arms race', mpgrid: 'Drivers & strategy' };
   function caps(kind, src) {
     const extra = XT && XT.KINDS.includes(kind), ep = kind === 'episode';
     const texts = kind === 'race' ? [['social', 'Social post'], ['report', 'Race report'], ['message', 'Progress message'], ['diary', 'Playthrough log'], ['ai', 'Write with AI (chat)']]
